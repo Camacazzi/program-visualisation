@@ -59,22 +59,22 @@ text = """
 //syscall name, PID, pid_tgid>>32
 
 
-struct data_enter {
+struct data_t{
     u64 pid_tgid; // process id
     u32 pid32; //pid after the 32 bit shift
     u32 sys; // syscall
 };
 
-struct data_exit {
+/*struct data_exit {
     u64 pid_tgid; // process id
     u32 pid32; //pid after the 32 bit shift
     u32 sys; // syscall
     u32 ret; //return arguments
-};
+};*/
 
 //BPF_HASH(count, u32, u32);
-BPF_HASH(data, u64, struct data_enter, 500000);
-BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
+BPF_HASH(data, u64, struct data_t, 500000);
+//BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
 
 
 //BPF_PERF_OUTPUT(events);
@@ -94,17 +94,17 @@ TRACEPOINT_PROBE(raw_syscalls,sys_enter){
 }*/
 
 TRACEPOINT_PROBE(raw_syscalls, sys_enter){
-    struct data_enter *val, zero= {};
+    struct data_t *val, zero= {};
     u64 t = bpf_ktime_get_ns();
     val = data.lookup_or_init(&t, &zero);
     val->pid_tgid = bpf_get_current_pid_tgid();
-    val->pid32 = val->pid_tgid >> 32;
-    val->sys = args->id;
+    //val->pid32 = val->pid_tgid >> 32;
+    //val->sys = args->id;
 
     return 0;
 }
 
-TRACEPOINT_PROBE(raw_syscalls, sys_exit){
+/*TRACEPOINT_PROBE(raw_syscalls, sys_exit){
     struct data_exit *val, zero={};
     u64 t = bpf_ktime_get_ns();
     val = data_exit_hash.lookup_or_init(&t, &zero);
@@ -112,29 +112,25 @@ TRACEPOINT_PROBE(raw_syscalls, sys_exit){
     val->pid32 = val->pid_tgid >> 32;
     val->sys = args->id;
     val->ret = args->ret;
-}
+
+    return 0;
+}*/
 """
 
-if args.child:
-    text = ("#define FILTER_CHILD %s\n" %args.child) + text
 if args.pid:
     text = ("#define FILTER_PID %d\n" % args.pid) + text
 if args.failures:
     text = "#define FILTER_FAILED\n" + text
 if args.errno:
     text = "#define FILTER_ERRNO %d\n" % abs(args.errno) + text
-if args.latency:
-    text = "#define LATENCY\n" + text
-if args.process:
-    text = "#define BY_PROCESS\n" + text
 if args.ebpf:
     print(text)
     exit()
 
 bpf = BPF(text=text)
 
-agg_colname = "PID    COMM" if args.process else "SYSCALL"
-time_colname = "TIME (ms)" if args.milliseconds else "TIME (us)"
+#agg_colname = "PID    COMM" if args.process else "SYSCALL"
+#time_colname = "TIME (ms)" if args.milliseconds else "TIME (us)"
 
 def comm_for_pid(pid):
     try:
@@ -142,9 +138,8 @@ def comm_for_pid(pid):
     except Exception:
         return b"[unknown]"
 
-print("Tracing %ssyscalls, printing top %d... Ctrl+C to quit." %
-      ("failed " if args.failures else "", args.top))
-exiting = 0 if args.interval else 1
+print("Tracing %ssyscalls, printing top %d... Ctrl+C to quit.")
+exiting = 0
 seconds = 0
 
 
@@ -162,12 +157,12 @@ def print_event_hash():
             continue    # happens occasionally, we don't need it
         printb((b"%-20d %22s %8d  %20s") % (k.value, comm_for_pid(v.pid32), v.pid_tgid, syscall_name(v.sys)))
 
-    data = bpf["data_exit_hash"]
+    """data = bpf["data_exit_hash"]
     for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
         if k.value == 0xFFFFFFFF:
             continue    # happens occasionally, we don't need it
         printb((b"%-20d %22s %8d  %20s %15d") % (k.value, comm_for_pid(v.pid32), v.pid_tgid, syscall_name(v.sys), v.ret))
-
+"""
 """b["events"].open_perf_buffer(print_event_perf)
 while 1:
     try:
@@ -177,13 +172,13 @@ while 1:
 
 while True:
     try:
-        sleep(args.interval)
-        seconds =+ args.interval
+        sleep(0)
+        #seconds =+ args.interval
     except KeyboardInterrupt:
         exiting = 1
         signal.signal(signal.SIGINT, signal_ignore)
-    if args.duration and seconds >= args.duration:
-        exiting = 1
+    #if args.duration and seconds >= args.duration:
+    #   exiting = 1
 
     print_event_hash()
     if exiting:
