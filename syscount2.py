@@ -94,6 +94,11 @@ TRACEPOINT_PROBE(raw_syscalls,sys_enter){
 }*/
 
 TRACEPOINT_PROBE(raw_syscalls, sys_enter){
+    #ifdef FILTER_PID
+    if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
+        return 0;
+    #endif
+
     struct data_t *val, zero= {};
     u64 t = bpf_ktime_get_ns();
     val = data.lookup_or_init(&t, &zero);
@@ -109,6 +114,10 @@ TRACEPOINT_PROBE(raw_syscalls, sys_enter){
 }
 
 TRACEPOINT_PROBE(raw_syscalls, sys_exit){
+    #ifdef FILTER_PID
+    if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
+        return 0;
+    #endif
     struct data_exit *val, zero={};
     u64 t = bpf_ktime_get_ns();
     val = data_exit_hash.lookup_or_init(&t, &zero);
