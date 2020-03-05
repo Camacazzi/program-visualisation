@@ -16,11 +16,25 @@ from bcc import BPF
 from bcc.utils import printb
 from bcc.syscall import syscall_name, syscalls
 import json
+import os
 
 if sys.version_info.major < 3:
     izip_longest = itertools.izip_longest
 else:
     izip_longest = itertools.zip_longest
+
+def executing():
+    n = os.fork()
+    if n == 0: #child
+        print("PID of child is: " + str(os.getpid()))
+        os._exit(0)
+    else: #parent
+        waitret = os.waitpid(n, 0)
+        print("have returned successfully, child pid was: "+ str(n))
+
+
+
+
 
 # signal handler
 def signal_ignore(signal, frame):
@@ -185,6 +199,8 @@ while 1:
     except KeyboardInterrupt:
         exit()"""
 
+executing();
+"""
 while True:
     try:
         sleep(0)
@@ -199,3 +215,4 @@ while True:
     if exiting:
         print("Exiting...")
         exit()
+        """
