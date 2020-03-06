@@ -23,17 +23,6 @@ if sys.version_info.major < 3:
 else:
     izip_longest = itertools.zip_longest
 
-def executing():
-    n = os.fork()
-    if n == 0: #child
-        print("PID of child is: " + str(os.getpid()))
-        os._exit(0)
-    else: #parent
-        waitret = os.waitpid(n, 0)
-        print("have returned successfully, child pid was: "+ str(n))
-
-
-
 
 
 # signal handler
@@ -51,115 +40,113 @@ def handle_errno(errstr):
     except AttributeError:
         raise argparse.ArgumentTypeError("couldn't map %s to an errno" % errstr)
 
-
-parser = argparse.ArgumentParser(
-    description="Summarize syscall counts and latencies.")
-parser.add_argument("-p", "--pid", type=int, help="trace only this pid")
-
+def gen_ebpf(pid):
+    """parser = argparse.ArgumentParser(description="Summarize syscall counts and latencies.")
+    parser.add_argument("-p", "--pid", type=int, help="trace only this pid")
 
 
-parser.add_argument("-x", "--failures", action="store_true",
-    help="trace only failed syscalls (return < 0)")
-parser.add_argument("-e", "--errno", type=handle_errno,
-    help="trace only syscalls that return this error (numeric or EPERM, etc.)")
-parser.add_argument("--ebpf", action="store_true",
-    help=argparse.SUPPRESS)
+    parser.add_argument("-x", "--failures", action="store_true",
+        help="trace only failed syscalls (return < 0)")
+    parser.add_argument("-e", "--errno", type=handle_errno,
+        help="trace only syscalls that return this error (numeric or EPERM, etc.)")
+    parser.add_argument("--ebpf", action="store_true",
+        help=argparse.SUPPRESS)
 
-args = parser.parse_args()
+    args = parser.parse_args()"""
 
-text = """
+    text = """
 
-//have a map wiith a meaningless key at the beginning, and in each leaf have the
-//syscall name, PID, pid_tgid>>32
-
-
-struct data_t{
-    u64 pid_tgid; // process id
-    u32 pid32; //pid after the 32 bit shift
-    u32 sys; // syscall
-};
-
-struct data_exit {
-    u64 pid_tgid; // process id
-    u32 pid32; //pid after the 32 bit shift
-    u32 sys; // syscall
-    u32 ret; //return arguments
-};
-
-//BPF_HASH(count, u32, u32);
-BPF_HASH(data, u64, struct data_t, 500000);
-BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
+    //have a map wiith a meaningless key at the beginning, and in each leaf have the
+    //syscall name, PID, pid_tgid>>32
 
 
-//BPF_PERF_OUTPUT(events);
-/*
-TRACEPOINT_PROBE(raw_syscalls,sys_enter){
-    struct data_enter val = {};
-    //u64 pid_tgid = bpf_get_current_pid_tgid();
-    //u32 key32 = pid_tgid >> 32;
-    //u32 sys = args->id;
-    val.pid_tgid = bpf_get_current_pid_tgid();
-    val.pid32 = val.pid_tgid >> 32;
-    val.sys = args->id;
+    struct data_t{
+        u64 pid_tgid; // process id
+        u32 pid32; //pid after the 32 bit shift
+        u32 sys; // syscall
+    };
 
-    events.perf_submit(args, &val, sizeof(val));
+    struct data_exit {
+        u64 pid_tgid; // process id
+        u32 pid32; //pid after the 32 bit shift
+        u32 sys; // syscall
+        u32 ret; //return arguments
+    };
 
-    return 0;
-}*/
+    //BPF_HASH(count, u32, u32);
+    BPF_HASH(data, u64, struct data_t, 500000);
+    BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
 
-TRACEPOINT_PROBE(raw_syscalls, sys_enter){
-    #ifdef FILTER_PID
-    if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
+
+    //BPF_PERF_OUTPUT(events);
+    /*
+    TRACEPOINT_PROBE(raw_syscalls,sys_enter){
+        struct data_enter val = {};
+        //u64 pid_tgid = bpf_get_current_pid_tgid();
+        //u32 key32 = pid_tgid >> 32;
+        //u32 sys = args->id;
+        val.pid_tgid = bpf_get_current_pid_tgid();
+        val.pid32 = val.pid_tgid >> 32;
+        val.sys = args->id;
+
+        events.perf_submit(args, &val, sizeof(val));
+
         return 0;
-    #endif
+    }*/
 
-    struct data_t *val, zero= {};
-    u64 t = bpf_ktime_get_ns();
-    val = data.lookup_or_init(&t, &zero);
-    
-    if(val){
-        val->pid_tgid = bpf_get_current_pid_tgid();
-        val->pid32 = val->pid_tgid >> 32;
-        val->sys = args->id;
-    }
-    
+    TRACEPOINT_PROBE(raw_syscalls, sys_enter){
+        #ifdef FILTER_PID
+        if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
+            return 0;
+        #endif
 
-    return 0;
-}
+        struct data_t *val, zero= {};
+        u64 t = bpf_ktime_get_ns();
+        val = data.lookup_or_init(&t, &zero);
+        
+        if(val){
+            val->pid_tgid = bpf_get_current_pid_tgid();
+            val->pid32 = val->pid_tgid >> 32;
+            val->sys = args->id;
+        }
+        
 
-TRACEPOINT_PROBE(raw_syscalls, sys_exit){
-    #ifdef FILTER_PID
-    if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
         return 0;
-    #endif
-    struct data_exit *val, zero={};
-    u64 t = bpf_ktime_get_ns();
-    val = data_exit_hash.lookup_or_init(&t, &zero);
-    if(val){
-        val->pid_tgid = bpf_get_current_pid_tgid();
-        val->pid32 = val->pid_tgid >> 32;
-        val->sys = args->id;
-        val->ret = args->ret;
     }
 
-    return 0;
-}
-"""
+    TRACEPOINT_PROBE(raw_syscalls, sys_exit){
+        #ifdef FILTER_PID
+        if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
+            return 0;
+        #endif
+        struct data_exit *val, zero={};
+        u64 t = bpf_ktime_get_ns();
+        val = data_exit_hash.lookup_or_init(&t, &zero);
+        if(val){
+            val->pid_tgid = bpf_get_current_pid_tgid();
+            val->pid32 = val->pid_tgid >> 32;
+            val->sys = args->id;
+            val->ret = args->ret;
+        }
 
-if args.pid:
-    text = ("#define FILTER_PID %d\n" % args.pid) + text
-if args.failures:
-    text = "#define FILTER_FAILED\n" + text
-if args.errno:
-    text = "#define FILTER_ERRNO %d\n" % abs(args.errno) + text
-if args.ebpf:
-    print(text)
-    exit()
+        return 0;
+    }
+    """
+    text = ("#define FILTER_PID %d\n" % pid) + text
+    """if args.pid:
+        text = ("#define FILTER_PID %d\n" % args.pid) + text
+    if args.failures:
+        text = "#define FILTER_FAILED\n" + text
+    if args.errno:
+        text = "#define FILTER_ERRNO %d\n" % abs(args.errno) + text
+    if args.ebpf:
+        print(text)
+        exit()"""
 
-bpf = BPF(text=text)
+    bpf = BPF(text=text)
 
-#agg_colname = "PID    COMM" if args.process else "SYSCALL"
-#time_colname = "TIME (ms)" if args.milliseconds else "TIME (us)"
+    #agg_colname = "PID    COMM" if args.process else "SYSCALL"
+    #time_colname = "TIME (ms)" if args.milliseconds else "TIME (us)"
 
 def comm_for_pid(pid):
     try:
@@ -168,7 +155,7 @@ def comm_for_pid(pid):
         return b"[unknown]"
 
 print("Tracing %ssyscalls, printing top %d... Ctrl+C to quit.")
-exiting = 0
+#exiting = 0
 seconds = 0
 
 
@@ -199,20 +186,38 @@ while 1:
     except KeyboardInterrupt:
         exit()"""
 
-executing();
-"""
-while True:
-    try:
-        sleep(0)
-        #seconds =+ args.interval
-    except KeyboardInterrupt:
-        exiting = 1
-        signal.signal(signal.SIGINT, signal_ignore)
-    #if args.duration and seconds >= args.duration:
-    #   exiting = 1
 
-    print_event_hash()
-    if exiting:
-        print("Exiting...")
-        exit()
-        """
+def executing():
+    exiting = 0
+    n = os.fork()
+    gen_ebpf(n)
+    if n == 0: #child
+        print("PID of child is: " + str(os.getpid()))
+        
+        sleep(0.05)
+        #delay to let tracing start
+        os.execl("./test", *sys.argv)
+        #run program
+        #program end
+        os._exit(0)
+    else: #parent
+        #start tracing
+        while True:
+            try:
+                sleep(0)
+            #seconds =+ args.interval
+            except KeyboardInterrupt:
+                exiting = 1
+                signal.signal(signal.SIGINT, signal_ignore)
+                #if args.duration and seconds >= args.duration:
+                #   exiting = 1
+
+            print_event_hash()
+            if exiting or os.waitpid(n, 0) is not n:
+                sleep(0.05)
+                print("Exiting...")
+                exit()
+        
+        print("have returned successfully, child pid was: "+ str(n))
+
+executing();

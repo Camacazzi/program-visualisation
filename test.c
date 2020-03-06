@@ -1,4 +1,5 @@
  
+ 
 #include <stdio.h>
 #include <unistd.h>
 
@@ -10,7 +11,7 @@ void writing(){
     sleep(1);
  
 	// Write to the file
-	fprintf(file_pointer, "This will write to a file.");
+	fprintf(file_pointer, "This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.\nThis will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.This will write to a file.");
 	
 	// Close the file
 	fclose(file_pointer);
@@ -34,5 +35,3 @@ int main(){
     sleep(2);
 	return 0;
 }
-
-
