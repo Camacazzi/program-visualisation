@@ -125,7 +125,7 @@ if n == 0: #child
 else: #parent
     #start tracing
     text = """
-
+    #include <uapi/linux/ptrace.h>
     //have a map wiith a meaningless key at the beginning, and in each leaf have the
     //syscall name, PID, pid_tgid>>32
 
@@ -139,19 +139,17 @@ else: #parent
         u32 ex_sys; // syscall
         u32 ex_ret; //return arguments
     };
+    
+    struct data_method{
+        u64 pid_tgid;
+        u32 pid32;
+    };
 
-    /*struct data_exit {
-        u64 pid_tgid; // process id
-        u32 pid32; //pid after the 32 bit shift
-        u32 sys; // syscall
-        u32 ret; //return arguments
-    };*/
-
-    //BPF_HASH(count, u32, u32);
     BPF_HASH(data, u64, struct data_t, 500000);
     //BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
     BPF_HASH(children, u32, u32);
 
+    BPF_HASH(method_ent, u64, struct data_method);
 
     //BPF_PERF_OUTPUT(events);
     /*
@@ -235,13 +233,34 @@ else: #parent
         }
         return 0;
     }
+
+    int method_enter(struct pt_regs *ctx){
+        u64 t = bpf_ktime_get_ns();
+        u64 pid = bpf_get_current_pid_tgid();
+
+        struct data_method *val, zero={};
+        val = method_ent.lookup_or_try_init(&t, &zero);
+        if(val){
+            val->pid_tgid = pid;
+            val->pid32 = val->pid_tgid >> 32;
+        }
+        return 0;
+
+
+    }
     """
     text = ("#define FILTER_PID %d\n" % n) + text
 
     bpf = BPF(text=text)
 
+    #bpf.attach_uprobe(name="/home/Desktop/program-visualisation/testfork", sym="writing", fn_name="method_enter")
+    bpf.attach_uprobe(name="./testfork", sym="writing", fn_name="method_enter")
+    bpf.attach_uprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
+
+
     def print_event_hash():
         data = bpf["data"]
+        method_data = bpf["method_ent"]
         #string = "pid_tgid:"+ str(data.pid_tgid)+ ", pid_tgid32:" +str(data.pid32)+ ",pid name: " +comm_for_pid(data.pid32)+ ", syscall: "+ syscall_name(data.sys) + '\n'
         #sorting for earliest first
         """for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
@@ -259,12 +278,16 @@ else: #parent
                 printb((b"exit: %-20d %22s %12d %8d  %20s %15d %15d") % (k.value,comm_for_pid(v.ex_pid32), v.ex_pid32, v.ex_pid_tgid, syscall_name(v.ex_sys), v.ex_sys, v.ex_ret))
             else:
                 printb((b"enter: %-20d %22s %12d %8d  %20s %15d") % (k.value, comm_for_pid(v.ent_pid32), v.ent_pid32, v.ent_pid_tgid, syscall_name(v.ent_sys), v.ex_sys))
+        for k, v in sorted(method_data.items(), key=lambda kv: -kv[0].value, reverse = True):
+            printb((b"method: %-20d %12d %12d") % (k.value, v.pid_tgid, v.pid32))
+
     while True:
         try:
             sleep(0)
         #seconds =+ args.interval
         except KeyboardInterrupt:
             exiting = 1
+            print_event_hash()
             signal.signal(signal.SIGINT, signal_ignore)
             #if args.duration and seconds >= args.duration:
             #   exiting = 1

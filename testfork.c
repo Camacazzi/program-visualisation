@@ -64,7 +64,8 @@ int main(){
             perror("exec\n");
             break;
         default: //parent
-			writing(pid);
+			for(int i = 0; i < 4; i++)
+				writing(pid);
             break;
     }
     sleep(2);

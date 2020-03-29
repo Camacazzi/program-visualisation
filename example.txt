@@ -1,0 +1,120 @@
+ 
+PID of child is: 3831
+exec
+: Success
+exit: 1899254254630                     [unknown]         3831 16454019714807                select              23               0
+enter: 1899254279366                     [unknown]         3831 16454019714807                getpid               0
+exit: 1899254280959                     [unknown]         3831 16454019714807                getpid              39            3831
+enter: 1899254344208                     [unknown]         3831 16454019714807                 write               0
+exit: 1899254355209                     [unknown]         3831 16454019714807                 write               1              22
+enter: 1899254360128                     [unknown]         3831 16454019714807                select               0
+exit: 1900255391080                     [unknown]         3831 16454019714807                select              23               0
+enter: 1900255444972                     [unknown]         3831 16454019714807                execve               0
+exit: 1900256130147                     [unknown]         3831 16454019714807                execve              59               0
+enter: 1900256154883                     [unknown]         3831 16454019714807                   brk               0
+exit: 1900256155805                     [unknown]         3831 16454019714807                   brk              12      3194310656
+enter: 1900256158319                     [unknown]         3831 16454019714807            arch_prctl               0
+exit: 1900256159001                     [unknown]         3831 16454019714807            arch_prctl             158      4294967274
+enter: 1900256173608                     [unknown]         3831 16454019714807                access               0
+exit: 1900256177305                     [unknown]         3831 16454019714807                access              21      4294967294
+enter: 1900256181853                     [unknown]         3831 16454019714807                openat               0
+exit: 1900256185731                     [unknown]         3831 16454019714807                openat             257               3
+enter: 1900256186542                     [unknown]         3831 16454019714807                 fstat               0
+exit: 1900256188937                     [unknown]         3831 16454019714807                 fstat               5               0
+enter: 1900256189648                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256191862                     [unknown]         3831 16454019714807                  mmap               9      3329843200
+enter: 1900256192483                     [unknown]         3831 16454019714807                 close               0
+exit: 1900256193636                     [unknown]         3831 16454019714807                 close               3               0
+enter: 1900256207131                     [unknown]         3831 16454019714807                openat               0
+exit: 1900256210247                     [unknown]         3831 16454019714807                openat             257               3
+enter: 1900256210848                     [unknown]         3831 16454019714807                  read               0
+exit: 1900256212571                     [unknown]         3831 16454019714807                  read               0             832
+enter: 1900256213272                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256214274                     [unknown]         3831 16454019714807                 pread              17             784
+enter: 1900256214936                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256215737                     [unknown]         3831 16454019714807                 pread              17              32
+enter: 1900256216338                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256217400                     [unknown]         3831 16454019714807                 pread              17              68
+enter: 1900256218252                     [unknown]         3831 16454019714807                 fstat               0
+exit: 1900256219073                     [unknown]         3831 16454019714807                 fstat               5               0
+enter: 1900256219825                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256221738                     [unknown]         3831 16454019714807                  mmap               9      3329835008
+enter: 1900256224443                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256225455                     [unknown]         3831 16454019714807                 pread              17             784
+enter: 1900256226347                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256227249                     [unknown]         3831 16454019714807                 pread              17              32
+enter: 1900256227910                     [unknown]         3831 16454019714807                 pread               0
+exit: 1900256228781                     [unknown]         3831 16454019714807                 pread              17              68
+enter: 1900256229493                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256232609                     [unknown]         3831 16454019714807                  mmap               9      3327975424
+enter: 1900256233230                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256240704                     [unknown]         3831 16454019714807                  mmap               9      3328126976
+enter: 1900256241275                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256245212                     [unknown]         3831 16454019714807                  mmap               9      3329486848
+enter: 1900256245733                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256250342                     [unknown]         3831 16454019714807                  mmap               9      3329794048
+enter: 1900256254079                     [unknown]         3831 16454019714807                  mmap               0
+exit: 1900256256844                     [unknown]         3831 16454019714807                  mmap               9      3329818624
+enter: 1900256261733                     [unknown]         3831 16454019714807                 close               0
+exit: 1900256262465                     [unknown]         3831 16454019714807                 close               3               0
+enter: 1900256276521                     [unknown]         3831 16454019714807            arch_prctl               0
+exit: 1900256277453                     [unknown]         3831 16454019714807            arch_prctl             158               0
+enter: 1900256322908                     [unknown]         3831 16454019714807              mprotect               0
+exit: 1900256327306                     [unknown]         3831 16454019714807              mprotect              10               0
+enter: 1900256329220                     [unknown]         3831 16454019714807              mprotect               0
+exit: 1900256331384                     [unknown]         3831 16454019714807              mprotect              10               0
+enter: 1900256334620                     [unknown]         3831 16454019714807              mprotect               0
+exit: 1900256338257                     [unknown]         3831 16454019714807              mprotect              10               0
+enter: 1900256338888                     [unknown]         3831 16454019714807                munmap               0
+exit: 1900256346562                     [unknown]         3831 16454019714807                munmap              11               0
+enter: 1900256370197                     [unknown]         3831 16454019714807                 clone               0
+exit: 1900256424028                     [unknown]         3831 16454019714807                 clone              56            3832
+enter: 1900256497355                     [unknown]         3831 16454019714807                   brk               0
+exit: 1900256498147                     [unknown]         3831 16454019714807                   brk              12      3194310656
+enter: 1900256500832                     [unknown]         3831 16454019714807                   brk               0
+exit: 1900256502876                     [unknown]         3831 16454019714807                   brk              12      3194445824
+enter: 1900256510630                     [unknown]         3831 16454019714807                openat               0
+exit: 1900256565713                     [unknown]         3831 16454019714807                openat             257               3
+enter: 1900256568068                     [unknown]         3831 16454019714807       clock_nanosleep               0
+enter: 1900256695797                     [unknown]         3832 16458314682104                   brk               0
+exit: 1900256697270                     [unknown]         3832 16458314682104                   brk              12      3194310656
+enter: 1900256698773                     [unknown]         3832 16458314682104                   brk               0
+exit: 1900256701368                     [unknown]         3832 16458314682104                   brk              12      3194445824
+enter: 1900256708832                     [unknown]         3832 16458314682104                openat               0
+exit: 1900256749608                     [unknown]         3832 16458314682104                openat             257               3
+enter: 1900256755028                     [unknown]         3832 16458314682104       clock_nanosleep               0
+exit: 1901256654908                     [unknown]         3831 16454019714807       clock_nanosleep             230               0
+enter: 1901256683512                     [unknown]         3831 16454019714807                 fstat               0
+exit: 1901256687780                     [unknown]         3831 16454019714807                 fstat               5               0
+enter: 1901256701295                     [unknown]         3831 16454019714807                 write               0
+exit: 1901256741580                     [unknown]         3831 16454019714807                 write               1              22
+enter: 1901256744276                     [unknown]         3831 16454019714807                 write               0
+exit: 1901256748904                     [unknown]         3831 16454019714807                 write               1              33
+enter: 1901256749846                     [unknown]         3831 16454019714807                 close               0
+exit: 1901256751489                     [unknown]         3831 16454019714807                 close               3               0
+enter: 1901256757190                     [unknown]         3831 16454019714807       clock_nanosleep               0
+exit: 1901256978675                     [unknown]         3832 16458314682104       clock_nanosleep             230               0
+enter: 1901256986309                     [unknown]         3832 16458314682104                 fstat               0
+exit: 1901256989906                     [unknown]         3832 16458314682104                 fstat               5               0
+enter: 1901256998362                     [unknown]         3832 16458314682104                 write               0
+exit: 1901257018400                     [unknown]         3832 16458314682104                 write               1              14
+enter: 1901257019482                     [unknown]         3832 16458314682104                 close               0
+exit: 1901257020744                     [unknown]         3832 16458314682104                 close               3               0
+enter: 1901257029190                     [unknown]         3832 16458314682104                   dup               0
+exit: 1901257030643                     [unknown]         3832 16458314682104                   dup              32               3
+enter: 1901257031634                     [unknown]         3832 16458314682104                 fcntl               0
+exit: 1901257032757                     [unknown]         3832 16458314682104                 fcntl              72               2
+enter: 1901257049698                     [unknown]         3832 16458314682104                 fstat               0
+exit: 1901257051111                     [unknown]         3832 16458314682104                 fstat               5               0
+enter: 1901257052654                     [unknown]         3832 16458314682104                 write               0
+exit: 1901257061250                     [unknown]         3832 16458314682104                 write               1               5
+enter: 1901257062512                     [unknown]         3832 16458314682104                 write               0
+exit: 1901257063885                     [unknown]         3832 16458314682104                 write               1              10
+enter: 1901257064807                     [unknown]         3832 16458314682104                 close               0
+exit: 1901257065528                     [unknown]         3832 16458314682104                 close               3               0
+enter: 1901257066330                     [unknown]         3832 16458314682104       clock_nanosleep               0
+exit: 1903256842069                     [unknown]         3831 16454019714807       clock_nanosleep             230               0
+enter: 1903256872265                     [unknown]         3831 16454019714807            exit_group               0
+exit: 1903257130399                     [unknown]         3832 16458314682104       clock_nanosleep             230               0
+enter: 1903257141651                     [unknown]         3832 16458314682104            exit_group               0
+Exiting...
