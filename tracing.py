@@ -18,6 +18,8 @@ from bcc.syscall import syscall_name, syscalls
 import json
 import os
 import subprocess
+from elftools.elf.elffile import ELFFile
+from elftools.common.py3compat import bytes2str
 
 if sys.version_info.major < 3:
     izip_longest = itertools.izip_longest
@@ -209,9 +211,81 @@ else: #parent
     """
     text = ("#define FILTER_PID %d\n" % n) + text
 
-    out = subprocess.check_output("nm testfork", shell=True)
+    """out = subprocess.check_output("nm testfork", shell=True)
+    out_arr = out.split()
+    print(out_arr)
+    
+    #assuming order of offset, type, name
+    #if first variable is not an int, skip to the next int
+    #if after finding an int it is all 0, skip to next int
+    #if int is non 0, if the symbol is not 'T', skip to next int
+    for i in range(out.split):
+        if(isinstance(i, int))"""
+    filename = "testfork"
+    symbols = []
+    print('Processing file:', filename)
+    with open(filename, 'rb') as f:
+        elffile = ELFFile(f)
 
-    print(out.split())
+        if not elffile.has_dwarf_info():
+            print('  file has no DWARF info')
+            #return
+
+        # get_dwarf_info returns a DWARFInfo context object, which is the
+        # starting point for all DWARF-based processing in pyelftools.
+        dwarfinfo = elffile.get_dwarf_info()
+
+        # get .debug_pubtypes section.
+        pubnames = dwarfinfo.get_pubnames()
+        if pubnames is None:
+            print('ERROR: No .debug_pubnames section found in ELF.')
+        else:
+            print('%d entries found in .debug_pubnames' % len(pubnames))
+
+            # try getting information on a global symbol.
+            print('Trying pubnames example ...')
+            sym_name = 'main'
+            try:
+                entry = pubnames[sym_name]
+            except KeyError:
+                print('ERROR: No pubname entry found for ' + sym_name)
+            else:
+                print('%s: cu_ofs = %d, die_ofs = %d' %
+                        (sym_name, entry.cu_ofs, entry.die_ofs))
+
+                # get the actual CU/DIE that has this information.
+                print('Fetching the actual die for %s ...' % sym_name)
+                for cu in dwarfinfo.iter_CUs():
+                    if cu.cu_offset == entry.cu_ofs:
+                        for die in cu.iter_DIEs():
+                            if die.offset == entry.die_ofs:
+                                print('Die Name: %s' %
+                                        bytes2str(die.attributes['DW_AT_name'].value))
+
+            # dump all entries in .debug_pubnames section.
+            print('Dumping .debug_pubnames table ...')
+            print('-' * 66)
+            print('%50s%8s%8s' % ('Symbol', 'CU_OFS', 'DIE_OFS'))
+            print('-' * 66)
+            for (name, entry) in pubnames.items():
+                symbols.append([name])
+                print('%50s%8d%8d' % (name, entry.cu_ofs, entry.die_ofs))
+                #print(entry)
+            print('-' * 66)
+
+            
+            for CU in dwarfinfo.iter_CUs():
+                for DIE in CU.iter_DIEs():
+                    
+                    if DIE.tag == 'DW_TAG_subprogram':
+                        for i in symbols:
+                            print(("i[0]: %20s, die.att: %20s") % (i[0], bytes2str(DIE.attributes['DW_AT_name'].value)))
+                            if i[0] == bytes2str(DIE.attributes['DW_AT_name'].value):
+                                i.append(DIE.attributes['DW_AT_low_pc'].value)
+            print(symbols)
+
+
+
 
     bpf = BPF(text=text)
 
