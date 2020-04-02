@@ -17,6 +17,7 @@ from bcc.utils import printb
 from bcc.syscall import syscall_name, syscalls
 import json
 import os
+import subprocess
 
 if sys.version_info.major < 3:
     izip_longest = itertools.izip_longest
@@ -43,36 +44,6 @@ def handle_errno(errstr):
         raise argparse.ArgumentTypeError("couldn't map %s to an errno" % errstr)
 
 
-"""parser = argparse.ArgumentParser(description="Summarize syscall counts and latencies.")
-parser.add_argument("-p", "--pid", type=int, help="trace only this pid")
-
-
-parser.add_argument("-x", "--failures", action="store_true",
-    help="trace only failed syscalls (return < 0)")
-parser.add_argument("-e", "--errno", type=handle_errno,
-    help="trace only syscalls that return this error (numeric or EPERM, etc.)")
-parser.add_argument("--ebpf", action="store_true",
-    help=argparse.SUPPRESS)
-
-args = parser.parse_args()"""
-
-
-
-"""if args.pid:
-    text = ("#define FILTER_PID %d\n" % args.pid) + text
-if args.failures:
-    text = "#define FILTER_FAILED\n" + text
-if args.errno:
-    text = "#define FILTER_ERRNO %d\n" % abs(args.errno) + text
-if args.ebpf:
-    print(text)
-    exit()"""
-
-#bpf = BPF(text=text)
-
-#agg_colname = "PID    COMM" if args.process else "SYSCALL"
-#time_colname = "TIME (ms)" if args.milliseconds else "TIME (us)"
-
 def comm_for_pid(pid):
     try:
         return open("/proc/%d/comm" % pid, "rb").read().strip()
@@ -89,22 +60,6 @@ def print_event_perf(cpu,data, size):
     f = open("outputbpfdata.txt", "w+")
     f.write(string)
 
-"""def print_event_hash():
-    data = bpf["data"]
-    #string = "pid_tgid:"+ str(data.pid_tgid)+ ", pid_tgid32:" +str(data.pid32)+ ",pid name: " +comm_for_pid(data.pid32)+ ", syscall: "+ syscall_name(data.sys) + '\n'
-    #sorting for earliest first
-    for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
-        if k.value == 0xFFFFFFFF:
-            continue    # happens occasionally, we don't need it
-        printb((b"%-20d %22s %8d  %20s") % (k.value, comm_for_pid(v.pid32), v.pid_tgid, syscall_name(v.sys)))
-    print("STARTING EXIT PRINT")
-    data = bpf["data_exit_hash"]
-    #sorting for earliest first
-    for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
-        if k.value == 0xFFFFFFFF:
-            continue    # happens occasionally, we don't need it
-        printb((b"%-20d %22s %8d  %20s %15d") % (k.value, comm_for_pid(v.pid32), v.pid_tgid, syscall_name(v.sys), v.ret))"""
-
 """b["events"].open_perf_buffer(print_event_perf)
 while 1:
     try:
@@ -113,10 +68,14 @@ while 1:
         exit()"""
 n = os.fork()
 if n == 0: #child
-    sleep(1)
+    print("child waiting for signal")
+    #signal.pause()
+    signal.signal(signal.SIGUSR1, signal_ignore)
+    print("signal receieved")
+    sleep(0.5)
     print("PID of child is: " + str(os.getpid()))
     
-    sleep(1)
+    #sleep(1)
     #delay to let tracing start
     os.execl("./testfork", *sys.argv)
     #run program
@@ -126,9 +85,6 @@ else: #parent
     #start tracing
     text = """
     #include <uapi/linux/ptrace.h>
-    //have a map wiith a meaningless key at the beginning, and in each leaf have the
-    //syscall name, PID, pid_tgid>>32
-
 
     struct data_t{
         u64 ent_pid_tgid; // process id
@@ -143,6 +99,7 @@ else: #parent
     struct data_method{
         u64 pid_tgid;
         u32 pid32;
+        u64 ip;
     };
 
     BPF_HASH(data, u64, struct data_t, 500000);
@@ -169,7 +126,9 @@ else: #parent
 
     TRACEPOINT_PROBE(raw_syscalls, sys_enter){
         u32 current_pid = bpf_get_current_pid_tgid() >> 32;
+        //If pid is not the parents
         if (current_pid != FILTER_PID){
+            //check if it belongs to a child
             u32 *check = children.lookup(&current_pid);
             if(check){
                 
@@ -201,19 +160,19 @@ else: #parent
         u32 current_pid = bpf_get_current_pid_tgid() >> 32;
         u32 one = 1;
         u32 clone = 56;
-        if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID){
+        if (current_pid == FILTER_PID){
             if(args->id == clone){
-                children.lookup_or_try_init(&current_pid, &one);
-                return 0;
+                u32 ret = args->ret;
+                children.lookup_or_try_init(&ret, &one);
             }
-            else{
-                u32 *check = children.lookup(&current_pid);
+        }
+        else{
+            u32 *check = children.lookup(&current_pid);
                 if(check){
                 
                 }
                 else{
                     return 0;
-                }
             }
         }
             
@@ -243,34 +202,29 @@ else: #parent
         if(val){
             val->pid_tgid = pid;
             val->pid32 = val->pid_tgid >> 32;
+            val->ip = PT_REGS_IP(ctx);
         }
         return 0;
-
-
     }
     """
     text = ("#define FILTER_PID %d\n" % n) + text
 
+    out = subprocess.check_output("nm testfork", shell=True)
+
+    print(out.split())
+
     bpf = BPF(text=text)
 
-    #bpf.attach_uprobe(name="/home/Desktop/program-visualisation/testfork", sym="writing", fn_name="method_enter")
     bpf.attach_uprobe(name="./testfork", sym="writing", fn_name="method_enter")
     bpf.attach_uprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
 
 
+    os.kill(n, signal.SIGUSR1)
+
     def print_event_hash():
         data = bpf["data"]
         method_data = bpf["method_ent"]
-        #string = "pid_tgid:"+ str(data.pid_tgid)+ ", pid_tgid32:" +str(data.pid32)+ ",pid name: " +comm_for_pid(data.pid32)+ ", syscall: "+ syscall_name(data.sys) + '\n'
-        #sorting for earliest first
-        """for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
-            if k.value == 0xFFFFFFFF:
-                continue    # happens occasionally, we don't need it
-            printb((b"%-20d %22s %12d %8d  %20s") % (k.value, comm_for_pid(v.pid32), v.pid32, v.pid_tgid, syscall_name(v.sys)))
-        print("STARTING EXIT PRINT")"""
-        #sorting for earliest first
-        #for i in data.items():
-        #    print(i)
+        children = bpf["children"]
         for k, v in sorted(data.items(), key=lambda kv: -kv[0].value, reverse = True):
             if k.value == 0xFFFFFFFF:
                 continue    # happens occasionally, we don't need it
@@ -279,8 +233,9 @@ else: #parent
             else:
                 printb((b"enter: %-20d %22s %12d %8d  %20s %15d") % (k.value, comm_for_pid(v.ent_pid32), v.ent_pid32, v.ent_pid_tgid, syscall_name(v.ent_sys), v.ex_sys))
         for k, v in sorted(method_data.items(), key=lambda kv: -kv[0].value, reverse = True):
-            printb((b"method: %-20d %12d %12d") % (k.value, v.pid_tgid, v.pid32))
-
+            printb((b"method: %-20d %12d %12d %12d") % (k.value, v.pid_tgid, v.pid32, v.ip))
+        for k, v in sorted(children.items(), key=lambda kv: -kv[0].value, reverse = True):
+            printb((b"child: %-20d") % (k.value))
     while True:
         try:
             sleep(0)
