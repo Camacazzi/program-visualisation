@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-void writing(pid_t pid){
+int writing(pid_t pid){
     FILE *file_pointer; 
 	
 	// open the file "name_of_file.txt" for writing
@@ -18,7 +18,7 @@ void writing(pid_t pid){
 	
 	// Close the file
 	fclose(file_pointer);
-    
+    return 0;
 }
 
 void writing_child(){

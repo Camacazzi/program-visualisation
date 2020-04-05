@@ -56,11 +56,11 @@ exiting = 0
 seconds = 0
 
 
-def print_event_perf(cpu,data, size):
+"""def print_event_perf(cpu,data, size):
     event = b["events"].event(data)
     string = "pid_tgid:"+ str(event.pid_tgid)+ ", pid_tgid32:" +str(event.pid32)+ ",pid name: " +comm_for_pid(event.pid32)+ ", syscall: "+ syscall_name(event.sys) + '\n'
     f = open("outputbpfdata.txt", "w+")
-    f.write(string)
+    f.write(string)"""
 
 
 n = os.fork()
@@ -92,6 +92,17 @@ else: #parent
         u32 ex_sys; // syscall
         u32 ex_ret; //return arguments
     };
+    struct data_t_perf{
+        u64 time;
+        u64 ent_pid_tgid; // process id
+        u32 ent_pid32; //pid after the 32 bit shift
+        u32 ent_sys; // syscall
+        u64 ex_pid_tgid; // process id
+        u32 ex_pid32; //pid after the 32 bit shift
+        u32 ex_sys; // syscall
+        u32 ex_ret; //return arguments
+        u64 ip;
+    };
     
     struct data_method{
         u64 pid_tgid;
@@ -105,7 +116,9 @@ else: #parent
 
     BPF_HASH(method_ent, u64, struct data_method);
 
-    //BPF_PERF_OUTPUT(events);
+    BPF_PERF_OUTPUT(events);
+    //BPF_PERF_OUTPUT(events)
+
     /*
     TRACEPOINT_PROBE(raw_syscalls,sys_enter){
         struct data_enter val = {};
@@ -138,6 +151,7 @@ else: #parent
         
 
         struct data_t *val, zero= {};
+        struct data_t_perf val_perf = {};
         u64 t = bpf_ktime_get_ns();
  
         val = data.lookup_or_try_init(&t, &zero);
@@ -149,6 +163,17 @@ else: #parent
             val->ex_pid32 = 0;
             val->ex_sys = 0;
             val->ex_ret = 0;
+
+            val_perf.time = t;
+            val_perf.ent_pid_tgid = val->ent_pid_tgid;
+            val_perf.ent_pid32 = val->ent_pid32;
+            val_perf.ent_sys = val->ent_sys;
+            val_perf.ex_pid_tgid = 0;
+            val_perf.ex_pid32 = 0;
+            val_perf.ex_sys = 0;
+            val_perf.ex_ret = 0;
+            val_perf.ip = 0;
+            events.perf_submit(args, &val_perf, sizeof(val_perf));
         }
         return 0;
     }
@@ -175,6 +200,7 @@ else: #parent
             
         
         struct data_t *val, zero={};
+        struct data_t_perf val_perf = {};
         u64 t = bpf_ktime_get_ns();
 
         val = data.lookup_or_try_init(&t, &zero);
@@ -186,6 +212,17 @@ else: #parent
             val->ex_pid32 = val->ex_pid_tgid >> 32;
             val->ex_sys = args->id;
             val->ex_ret = args->ret;
+
+            val_perf.time = t;
+            val_perf.ent_pid_tgid = 0;
+            val_perf.ent_pid32 = 0;
+            val_perf.ent_sys = 0;
+            val_perf.ex_pid_tgid = val->ex_pid_tgid;
+            val_perf.ex_pid32 = val->ex_pid32;
+            val_perf.ex_sys = val->ex_sys;
+            val_perf.ex_ret = val->ex_ret;
+            val_perf.ip = 0;
+            events.perf_submit(args, &val_perf, sizeof(val_perf));
         }
         return 0;
     }
@@ -195,11 +232,26 @@ else: #parent
         u64 pid = bpf_get_current_pid_tgid();
 
         struct data_method *val, zero={};
+        //struct data_method_perf val_perf = {};
+        struct data_t_perf val_perf = {};
         val = method_ent.lookup_or_try_init(&t, &zero);
         if(val){
             val->pid_tgid = pid;
             val->pid32 = val->pid_tgid >> 32;
             val->ip = PT_REGS_IP(ctx);
+
+            val_perf.time = t;
+            val_perf.ent_pid_tgid = val->pid_tgid;
+            val_perf.ent_pid32 = val->pid32;
+            val_perf.ip = val->ip;
+
+            val_perf.ent_sys = 0;
+            val_perf.ex_pid_tgid = 0;
+            val_perf.ex_pid32 = 0;
+            val_perf.ex_sys = 0;
+            val_perf.ex_ret = 0;
+
+            events.perf_submit(ctx, &val_perf, sizeof(val_perf));
         }
         return 0;
     }
@@ -284,8 +336,8 @@ else: #parent
 
     bpf = BPF(text=text)
 
-    bpf.attach_uprobe(name="./testfork", sym="writing", fn_name="method_enter")
-    bpf.attach_uprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
+    #bpf.attach_uprobe(name="./testfork", sym="writing", fn_name="method_enter")
+    #bpf.attach_uprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
 
     bpf.attach_uretprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
     bpf.attach_uretprobe(name="./testfork", sym="writing", fn_name="method_enter")
@@ -327,30 +379,36 @@ else: #parent
             print("Exiting...")
             exit()"""
     
-    def print_event(cpu, data, size):
+    def print_event_perf(cpu, data, size):
         global start
-        sys_event = b["events"].event(data)
-        if start == 0:
-            start = event.ts
-        time_s = (float(event.ts - start)) / 1000000000
-        printb(b"%-18.9f %-16s %-6d %s" % (time_s, event.comm, event.pid,
-            b"Hello, perf_output!"))
-
+        sys_event = bpf["events"].event(data)
+        #if start == 0:
+         #   start = event.ts
+        #time_s = (float(event.ts - start)) / 1000000000
+        if(sys_event.ent_pid32 == 0 and sys_event.ip == 0):
+            #print("exit: %-20d %22s %12d %8d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
+            print("exit: %-20d %22s %12d %8d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
+        elif (sys_event.ex_pid32 == 0 and sys_event.ip == 0):
+            #print("enter: %-20d %22s %12d %8d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys))
+            print("enter: %-20d %22s %12d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid))
+        else:
+            print("method: %-20d %12d %8d %15s" % (sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32)))
+    
     bpf["events"].open_perf_buffer(print_event_perf)
     while 1:
-    try:
-        bpf.perf_buffer_poll()
-    except KeyboardInterrupt:
-        print("KB Interrupt: Exiting...")
-        exit()
-    if exiting or os.waitpid(n, 0) is not n:
-        #sleep(0.05)
-        #print_event_hash()
-        print("Exiting...")
-        exit()
-    
-    print("have returned successfully, child pid was: "+ str(n))
-
+        try:
+            bpf.perf_buffer_poll()
+        except KeyboardInterrupt:
+            print("KB Interrupt: Exiting...")
+            exit()
+        #exiting = os.waitpid(n, os.WNOHANG)
+        #if os.waitpid(n, os.WNOHANG) is not n:
+        if os.waitpid(n, os.WNOHANG) is n:
+            #sleep(0.05)
+            #print_event_hash()
+            bpf.perf_buffer_poll()
+            print("Exiting...")
+            exit()
 
 
 
