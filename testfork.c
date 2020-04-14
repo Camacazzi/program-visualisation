@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
 int writing(pid_t pid){
     FILE *file_pointer; 
@@ -21,7 +22,9 @@ int writing(pid_t pid){
     return 0;
 }
 
-void writing_child(){
+int writing_child(){
+	sleep(1);
+	perror("writing child!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     FILE *file_pointer; 
 	
 	// open the file "name_of_file.txt" for writing
@@ -51,7 +54,7 @@ int main(){
 	fclose(file_pointer); */
 	//char s[10];
 	//scanf("%s", s);
-	//sleep(5);
+	//sleep(1);
 	pid_t pid = fork();
     int status;
 	switch(pid){
@@ -60,14 +63,16 @@ int main(){
             exit(1);
 
         case 0: //child
-			writing_child();
+			for(int i = 0; i < 4; i++)
+				writing_child();
             perror("exec\n");
             break;
         default: //parent
-			for(int i = 0; i < 4; i++)
-				writing(pid);
+			//for(int i = 0; i < 4; i++)
+			writing(pid);
             break;
+			//waitpid(pid, &status, 0);
     }
-    sleep(2);
+    //sleep(2);
 	return 0;
 }

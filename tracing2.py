@@ -18,6 +18,8 @@ from bcc.syscall import syscall_name, syscalls
 import json
 import os
 import subprocess
+import prctl
+import operator
 from elftools.elf.elffile import ELFFile
 from elftools.common.py3compat import bytes2str
 
@@ -55,12 +57,53 @@ def comm_for_pid(pid):
 exiting = 0
 seconds = 0
 
+def organise(syscall_ent, syscall_ex, method_list, parent, x_children):
+    #take method data
+    #split up into pids, order by time
+    #work outwards from the middle finding matching pairs, after going through them all use a sorting algorithm
+    #combine the syscall lists
+    #output dictionary of pid's as keys, containing 2 arrays each, one for methods, one for syscalls
+    merged = {parent: []}
+    for i in x_children:
+        merged[i] = []
+    method_list.sort(key = operator.itemgetter(2,1))
+    print(method)
+    #loop through until pid changes
+    #find last occurence of a method enter occurring for that pid, that and the subsequent method exit are the same, do eqn and do calcs, store in dic, then del from array
+    #search index up for next occurence of 2, repeat process until index of 0 reached
+    # ident, sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret)
+    curr_pid = method_list[0][2] 
+    i = 1
+    last_ent_index = 0
+    method_temp = ()
+    while len(method_list) > 0:
+        if(method_list[i][2] == curr_pid):
+            #keep searching for end of pid
+            if(method_list[i][0] == 2):
+                #we found a method enter
+                last_ent_index = i
+            i = i + 1
+            continue
+        else:
+            #do the calcs, delete from array
+            #what to do if things are mismatched/program ended early? what should of happened is there will be an enter with no subsequent exit
+            #this can happen one of two ways, function starts, and has no other functions inside it to run, so it exits, but it doesn't exit. 
+            #This would have an ent be at the end of the list of methods. Check for if the next ex is from same pid/actually exists
+            #if it has functions inside it to run, but never finished itself, eventually we will reach this stage too.
+            #solution: Check for if the next ex is from same pid/actually exists
+            method_temp.append((method_list[last_ent_index + 1][1]-method_list[last_ent_index][1], method_list[last_ent_index][2], method_list[last_ent_index][4], method_list[last_ent_index][5]))
+            del method_list[last_end_index]
+            del method_list[last_end_index + 1]
+            #shift up i until we get another 2 value, keep going until we hit 0
+            #while i > 0:
 
-"""def print_event_perf(cpu,data, size):
-    event = b["events"].event(data)
-    string = "pid_tgid:"+ str(event.pid_tgid)+ ", pid_tgid32:" +str(event.pid32)+ ",pid name: " +comm_for_pid(event.pid32)+ ", syscall: "+ syscall_name(event.sys) + '\n'
-    f = open("outputbpfdata.txt", "w+")
-    f.write(string)"""
+            
+        
+
+
+
+program = "testfork"
+exec_program = "./" + program
 
 
 n = os.fork()
@@ -72,9 +115,7 @@ if n == 0: #child
     sleep(0.5)
     print("PID of child is: " + str(os.getpid()))
     
-    #sleep(1)
-    #delay to let tracing start
-    os.execl("./testfork", *sys.argv)
+    os.execl(exec_program, *sys.argv)
     #run program
     #program end
     os._exit(0)
@@ -92,8 +133,11 @@ else: #parent
         u32 ex_sys; // syscall
         u32 ex_ret; //return arguments
     };
+
+    //identifier: 0 = system call enter, 1 = system call exit, 2 = method enter, 3 = method exit, 4 = child notification
     struct data_t_perf{
         u64 time;
+        u32 identifier; //if 4, new child has spawned, its pid will be in ent_pid32, add it to the children array and check for when it exits
         u64 ent_pid_tgid; // process id
         u32 ent_pid32; //pid after the 32 bit shift
         u32 ent_sys; // syscall
@@ -101,13 +145,16 @@ else: #parent
         u32 ex_pid32; //pid after the 32 bit shift
         u32 ex_sys; // syscall
         u32 ex_ret; //return arguments
-        u64 ip;
+        u64 ip; //instruction pointer
     };
     
     struct data_method{
+        //0 is method enter, 1 is method exit. May refactor previous syscall code to utilise this.
+        u32 identifier;
         u64 pid_tgid;
         u32 pid32;
         u64 ip;
+        u64 rc;
     };
 
     BPF_HASH(data, u64, struct data_t, 500000);
@@ -115,24 +162,10 @@ else: #parent
     BPF_HASH(children, u32, u32);
 
     BPF_HASH(method_ent, u64, struct data_method);
+    BPF_HASH(method_ex, u64, struct data_method);
 
     BPF_PERF_OUTPUT(events);
     //BPF_PERF_OUTPUT(events)
-
-    /*
-    TRACEPOINT_PROBE(raw_syscalls,sys_enter){
-        struct data_enter val = {};
-        //u64 pid_tgid = bpf_get_current_pid_tgid();
-        //u32 key32 = pid_tgid >> 32;
-        //u32 sys = args->id;
-        val.pid_tgid = bpf_get_current_pid_tgid();
-        val.pid32 = val.pid_tgid >> 32;
-        val.sys = args->id;
-
-        events.perf_submit(args, &val, sizeof(val));
-
-        return 0;
-    }*/
 
     TRACEPOINT_PROBE(raw_syscalls, sys_enter){
         u32 current_pid = bpf_get_current_pid_tgid() >> 32;
@@ -165,6 +198,7 @@ else: #parent
             val->ex_ret = 0;
 
             val_perf.time = t;
+            val_perf.identifier = 0;
             val_perf.ent_pid_tgid = val->ent_pid_tgid;
             val_perf.ent_pid32 = val->ent_pid32;
             val_perf.ent_sys = val->ent_sys;
@@ -181,22 +215,31 @@ else: #parent
     TRACEPOINT_PROBE(raw_syscalls, sys_exit){
         u32 current_pid = bpf_get_current_pid_tgid() >> 32;
         u32 one = 1;
+        u32 four = 4;
         u32 clone = 56;
         if (current_pid == FILTER_PID){
             if(args->id == clone){
                 u32 ret = args->ret;
                 children.lookup_or_try_init(&ret, &one);
+                struct data_t_perf val_perf_child = {};
+                val_perf_child.ent_pid32 = ret;
+                val_perf_child.identifier = four;
+                events.perf_submit(args, &val_perf_child, sizeof(val_perf_child));
             }
         }
         else{
             u32 *check = children.lookup(&current_pid);
                 if(check){
-                
+                    if(args->id == clone){
+                        u32 ret = args->ret;
+                        children.lookup_or_try_init(&ret, &one);
+                    }
                 }
                 else{
                     return 0;
             }
         }
+
             
         
         struct data_t *val, zero={};
@@ -214,6 +257,7 @@ else: #parent
             val->ex_ret = args->ret;
 
             val_perf.time = t;
+            val_perf.identifier = one;
             val_perf.ent_pid_tgid = 0;
             val_perf.ent_pid32 = 0;
             val_perf.ent_sys = 0;
@@ -230,6 +274,7 @@ else: #parent
     int method_enter(struct pt_regs *ctx){
         u64 t = bpf_ktime_get_ns();
         u64 pid = bpf_get_current_pid_tgid();
+        u32 two = 2;
 
         struct data_method *val, zero={};
         //struct data_method_perf val_perf = {};
@@ -241,6 +286,7 @@ else: #parent
             val->ip = PT_REGS_IP(ctx);
 
             val_perf.time = t;
+            val_perf.identifier = two;
             val_perf.ent_pid_tgid = val->pid_tgid;
             val_perf.ent_pid32 = val->pid32;
             val_perf.ip = val->ip;
@@ -255,20 +301,50 @@ else: #parent
         }
         return 0;
     }
+
+    int method_exit(struct pt_regs *ctx){
+        u64 t = bpf_ktime_get_ns();
+        u64 pid = bpf_get_current_pid_tgid();
+        u32 three = 3;
+
+        struct data_method *val, zero={};
+        //struct data_method_perf val_perf = {};
+        struct data_t_perf val_perf = {};
+        val = method_ex.lookup_or_try_init(&t, &zero);
+        if(val){
+            val->pid_tgid = pid;
+            val->pid32 = val->pid_tgid >> 32;
+            val->ip = PT_REGS_IP(ctx);
+            val->rc = PT_REGS_RC(ctx);
+
+            val_perf.time = t;
+            val_perf.identifier = three;
+            val_perf.ex_pid_tgid = val->pid_tgid;
+            val_perf.ex_pid32 = val->pid32;
+            val_perf.ip = val->ip;
+            val_perf.ex_ret = val->rc;
+
+            val_perf.ent_sys = 0;
+            val_perf.ent_pid_tgid = 0;
+            val_perf.ent_pid32 = 0;
+            val_perf.ent_sys = 0;
+
+            events.perf_submit(ctx, &val_perf, sizeof(val_perf));
+        }
+        return 0;
+    }
     """
     text = ("#define FILTER_PID %d\n" % n) + text
 
-    """out = subprocess.check_output("nm testfork", shell=True)
-    out_arr = out.split()
-    print(out_arr)
-    
-    #assuming order of offset, type, name
-    #if first variable is not an int, skip to the next int
-    #if after finding an int it is all 0, skip to next int
-    #if int is non 0, if the symbol is not 'T', skip to next int
-    for i in range(out.split):
-        if(isinstance(i, int))"""
-    filename = "testfork"
+
+    syscall_ent = []
+    syscall_ex = []
+    method = []
+    #method_ent = []
+    #method_ex = []
+    method_merged = []
+    x_children = []
+    filename = program
     symbols = []
     print('Processing file:', filename)
     with open(filename, 'rb') as f:
@@ -315,20 +391,20 @@ else: #parent
             print('%50s%8s%8s' % ('Symbol', 'CU_OFS', 'DIE_OFS'))
             print('-' * 66)
             for (name, entry) in pubnames.items():
-                symbols.append([name])
+                symbols.append(name)
                 print('%50s%8d%8d' % (name, entry.cu_ofs, entry.die_ofs))
                 #print(entry)
             print('-' * 66)
 
             
-            for CU in dwarfinfo.iter_CUs():
+            """for CU in dwarfinfo.iter_CUs():
                 for DIE in CU.iter_DIEs():
                     
                     if DIE.tag == 'DW_TAG_subprogram':
                         for i in symbols:
                             print(("i[0]: %20s, die.att: %20s") % (i[0], bytes2str(DIE.attributes['DW_AT_name'].value)))
                             if i[0] == bytes2str(DIE.attributes['DW_AT_name'].value):
-                                i.append(DIE.attributes['DW_AT_low_pc'].value)
+                                i.append(DIE.attributes['DW_AT_low_pc'].value)"""
             print(symbols)
 
 
@@ -336,11 +412,13 @@ else: #parent
 
     bpf = BPF(text=text)
 
-    #bpf.attach_uprobe(name="./testfork", sym="writing", fn_name="method_enter")
-    #bpf.attach_uprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
 
-    bpf.attach_uretprobe(name="./testfork", sym="writing_child", fn_name="method_enter")
-    bpf.attach_uretprobe(name="./testfork", sym="writing", fn_name="method_enter")
+    for methods in symbols:
+        bpf.attach_uprobe(name=exec_program, sym=methods, fn_name="method_enter")
+        bpf.attach_uretprobe(name=exec_program, sym=methods, fn_name="method_exit")
+
+
+    prctl.set_child_subreaper(1)
 
 
     os.kill(n, signal.SIGUSR1)
@@ -360,55 +438,84 @@ else: #parent
             printb((b"method: %-20d %12d %12d %12d %20s") % (k.value, v.pid_tgid, v.pid32, v.ip, bpf.sym(v.ip, v.pid32)))
         for k, v in sorted(children.items(), key=lambda kv: -kv[0].value, reverse = True):
             printb((b"child: %-20d") % (k.value))
-    """while True:
-        try:
-            sleep(0)
-        #seconds =+ args.interval
-        except KeyboardInterrupt:
-            exiting = 1
-            print_event_hash()
-            signal.signal(signal.SIGINT, signal_ignore)
-            #if args.duration and seconds >= args.duration:
-            #   exiting = 1
 
-        print_event_hash()
-        if exiting or os.waitpid(n, 0) is not n:
-
-            #sleep(0.05)
-            #print_event_hash()
-            print("Exiting...")
-            exit()"""
     
     def print_event_perf(cpu, data, size):
         global start
         sys_event = bpf["events"].event(data)
-        #if start == 0:
-         #   start = event.ts
-        #time_s = (float(event.ts - start)) / 1000000000
-        if(sys_event.ent_pid32 == 0 and sys_event.ip == 0):
-            #print("exit: %-20d %22s %12d %8d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
-            print("exit: %-20d %22s %12d %8d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
-        elif (sys_event.ex_pid32 == 0 and sys_event.ip == 0):
-            #print("enter: %-20d %22s %12d %8d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid, syscall_name(sys_event.ex_sys),sys_event.ex_sys))
-            print("enter: %-20d %22s %12d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid_tgid))
-        else:
-            print("method: %-20d %12d %8d %15s" % (sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32)))
+        if(sys_event.identifier == 1):
+            #printing exit system calls
+            l = (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
+            syscall_ent.append(l)
+            print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
+        elif(sys_event.identifier == 0):
+            #printing enter system calls
+            l = (sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys)
+            syscall_ex.append(l)
+            print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys))
+        elif(sys_event.identifier == 2):
+            #printing method enter calls
+            l = (2, sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32))
+            method.append(l)
+            print("method ent: %-20d %12d %8d %15s" % (sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32)))
+        elif(sys_event.identifier == 3):
+            #printing method exit calls
+            l = (3, sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret)
+            method.append(l)
+            print("method ex: %-20d %12d %8d %15s %12d" % (sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret))
+        elif(sys_event.identifier == 4):
+            #process has spawned
+            x_children.append(sys_event.ent_pid32)
     
     bpf["events"].open_perf_buffer(print_event_perf)
     while 1:
+
         try:
             bpf.perf_buffer_poll()
+            os.waitpid(-1, os.WNOHANG)
+            #sleep(0.05)
+            #print_event_hash()
         except KeyboardInterrupt:
             print("KB Interrupt: Exiting...")
             exit()
-        #exiting = os.waitpid(n, os.WNOHANG)
-        #if os.waitpid(n, os.WNOHANG) is not n:
-        if os.waitpid(n, os.WNOHANG) is n:
-            #sleep(0.05)
-            #print_event_hash()
-            bpf.perf_buffer_poll()
-            print("Exiting...")
+        except OSError:
+            #syscalls, methodcalls = organise(syscall_ent, syscall_ex, method, n, x_children)
+            #organise(syscall_ent, syscall_ex, method, n, x_children)
+            #take method data
+            #split up into pids, order by time
+            #work outwards from the middle finding matching pairs, after going through them all use a sorting algorithm
+            #combine the syscall lists
+            print("Program has shut down, or can no longer be found")
+            #break
             exit()
+        
+        
+        """except:
+            print("original pid is gone")
+            k = 0
+            while 1:
+                if(len(grandchildren) >= 1):
+                    gc = grandchildren[k]
+                    
+                    k = k + 1
+                    grandchildren.pop()
+                    while 1:
+                        try:
+                            print("gc: " + str(gc))
+                            bpf.perf_buffer_poll()
+                            #os.waitpid(gc, os.WNOHANG)
+                            os.killpg(gc, 0)
+                        except KeyboardInterrupt:
+                            print("KB Interrupt: Exiting...")
+                            exit()
+                        except OSError:
+                            break
+                else:
+                    print(grandchildren)
+                    print("Exiting...")
+                    exit()"""
+                
+            
 
 
 
