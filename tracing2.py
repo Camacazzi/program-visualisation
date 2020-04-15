@@ -57,17 +57,17 @@ def comm_for_pid(pid):
 exiting = 0
 seconds = 0
 
-def organise(syscall_ent, syscall_ex, method_list, parent, x_children):
+def organise(syscall_list, method_list, parent, x_children):
     #take method data
     #split up into pids, order by time
     #work outwards from the middle finding matching pairs, after going through them all use a sorting algorithm
     #combine the syscall lists
     #output dictionary of pid's as keys, containing 2 arrays each, one for methods, one for syscalls
-    merged = {parent: []}
+    merged = {parent: [[], []]}
     for i in x_children:
-        merged[i] = []
+        merged[i] = [[], []]
     method_list.sort(key = operator.itemgetter(2,1))
-    print(method)
+    #print(method)
     #loop through until pid changes
     #find last occurence of a method enter occurring for that pid, that and the subsequent method exit are the same, do eqn and do calcs, store in dic, then del from array
     #search index up for next occurence of 2, repeat process until index of 0 reached
@@ -75,9 +75,12 @@ def organise(syscall_ent, syscall_ex, method_list, parent, x_children):
     curr_pid = method_list[0][2] 
     i = 1
     last_ent_index = 0
-    method_temp = ()
+    method_temp = []
+    #print("method_list len: " + str(len(method_list)))
     while len(method_list) > 0:
-        if(method_list[i][2] == curr_pid):
+        #print("i: " + str(i))
+        if(i < len(method_list) and method_list[i][2] == curr_pid):
+            #print(("method pid: %d curr_pid %d") % (method_list[i][2], curr_pid))
             #keep searching for end of pid
             if(method_list[i][0] == 2):
                 #we found a method enter
@@ -85,17 +88,96 @@ def organise(syscall_ent, syscall_ex, method_list, parent, x_children):
             i = i + 1
             continue
         else:
+            #print("entered organise else:")
+            #print("last_ent_index = " + str(last_ent_index))
             #do the calcs, delete from array
             #what to do if things are mismatched/program ended early? what should of happened is there will be an enter with no subsequent exit
             #this can happen one of two ways, function starts, and has no other functions inside it to run, so it exits, but it doesn't exit. 
             #This would have an ent be at the end of the list of methods. Check for if the next ex is from same pid/actually exists
             #if it has functions inside it to run, but never finished itself, eventually we will reach this stage too.
-            #solution: Check for if the next ex is from same pid/actually exists
-            method_temp.append((method_list[last_ent_index + 1][1]-method_list[last_ent_index][1], method_list[last_ent_index][2], method_list[last_ent_index][4], method_list[last_ent_index][5]))
-            del method_list[last_end_index]
-            del method_list[last_end_index + 1]
+            #solution: Check for if the next ex is from same pid/actually exists, if this happens it will be the last entry from the pid, and it will be an enter
+            #turns out we can have exits without a subsequent enter
+            method_temp.append((method_list[last_ent_index][1], method_list[last_ent_index + 1][1]-method_list[last_ent_index][1], method_list[last_ent_index][2], method_list[last_ent_index][4], method_list[last_ent_index+1][5]))
+            #method_temp.append((method_list[last_ent_index + 1][1]-method_list[last_ent_index][1], method_list[last_ent_index][2]))
+
+            #print("method_temp 1: ")
+            #print(method_temp)
+            del method_list[last_ent_index]
+            #del method_list[last_ent_index + 1]
+            del method_list[last_ent_index]
+            #print("method_list 1: ")
+            #print(method_list)
             #shift up i until we get another 2 value, keep going until we hit 0
-            #while i > 0:
+            last_ent_index = last_ent_index -1
+            while last_ent_index > -1:
+                if(method_list[last_ent_index][0] == 2):
+                    #print("last_ent_index in second loop: "+ str(last_ent_index))
+                    method_temp.append((method_list[last_ent_index][1], method_list[last_ent_index+ 1][1]-method_list[last_ent_index][1], method_list[last_ent_index][2], method_list[last_ent_index][4], method_list[last_ent_index+1][5]))
+                    del method_list[last_ent_index]
+                    #del method_list[last_ent_index + 1]
+                    del method_list[last_ent_index]
+                last_ent_index = last_ent_index - 1
+            #print("method_temp 2: ")
+            #print(method_temp)
+            #print("method_list 2: ")
+            #print(method_list)
+            #by this point we should of cleared out all of the pid from the start of the array
+            #however if we need to check if we have an exit, with no enter, if so, maybe through it out? Maybe not.
+            if(method_list[last_ent_index + 1][0] == 3):
+                method_temp.append((method_list[last_ent_index+1][1],-1, method_list[last_ent_index+1][2], method_list[last_ent_index+1][4], method_list[last_ent_index+1][5]))
+                del method_list[last_ent_index]
+            if(len(method_list) > 0):
+                #if it isn't 0, assume the loop will end
+                i = 0
+                curr_pid = method_list[0][2]
+    #now to load them into the merged dictionary
+    for i in range(len(method_temp)):
+        merged[method_temp[i][2]][0].append(method_temp[i])   
+    #print(merged)
+    syscall_temp = []       
+    #now for the syscall stuffp
+    syscall_list.sort(key = operator.itemgetter(3,1))
+    i = 0
+    j = 0
+    print(syscall_list)
+    #(1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
+    exec_reached = 0
+    #right now I'm assuming we should be looking at an enter
+    while i < len(syscall_list):
+        #don't include info from before execve is called, strip it out
+        try:
+            if syscall_list[i][5] == 59:
+                exec_reached = 1
+                print("i val first if: %d" % (i))
+            if exec_reached == 0:
+                print("syscall: %s" % (syscall_list[i][4]))
+                print("i val second if: %d" % (i))
+                i = i + 1
+                continue
+            else:
+                if(syscall_list[i][5] == syscall_list[i+1][5]):
+                    #all is good in the world, I think
+                    print("i val 3rd if: %d" % (i))
+                    merged[syscall_list[i][3]][1].append((syscall_list[i][1], syscall_list[i+ 1][1]-syscall_list[i][1], syscall_list[i][3], syscall_list[i][4], syscall_list[i+1][6]))
+                else:
+                    print("i val 2nd else if: %d" % (i))
+                    print("i: %d i+1: %d" % (syscall_list[i][5], syscall_list[i+1][5]))
+                    #fire and chaos, a process may not of exited correctly, leaving a hanging syscall, or exit_group was called
+                    #append this lone strangler, having duration be -1, assuming it's an enter
+                    #advance the ticker by 1
+                    merged[syscall_list[i][3]][1].append((syscall_list[i][1], -1, syscall_list[i][3], syscall_list[i][4]))
+                    i = i + 1
+                    continue
+                i = i + 2
+        except IndexError: 
+            #assume there is a lone straggler at the end when trying to access i + 1, loop will likely end now
+            merged[syscall_list[i][3]][1].append((syscall_list[i][1], -1, syscall_list[i][3], syscall_list[i][4]))
+            i = i + 1
+
+
+    print(merged)
+    return merged
+
 
             
         
@@ -337,8 +419,9 @@ else: #parent
     text = ("#define FILTER_PID %d\n" % n) + text
 
 
-    syscall_ent = []
-    syscall_ex = []
+    #syscall_ent = []
+    #syscall_ex = []
+    syscall = []
     method = []
     #method_ent = []
     #method_ex = []
@@ -396,15 +479,6 @@ else: #parent
                 #print(entry)
             print('-' * 66)
 
-            
-            """for CU in dwarfinfo.iter_CUs():
-                for DIE in CU.iter_DIEs():
-                    
-                    if DIE.tag == 'DW_TAG_subprogram':
-                        for i in symbols:
-                            print(("i[0]: %20s, die.att: %20s") % (i[0], bytes2str(DIE.attributes['DW_AT_name'].value)))
-                            if i[0] == bytes2str(DIE.attributes['DW_AT_name'].value):
-                                i.append(DIE.attributes['DW_AT_low_pc'].value)"""
             print(symbols)
 
 
@@ -445,13 +519,13 @@ else: #parent
         sys_event = bpf["events"].event(data)
         if(sys_event.identifier == 1):
             #printing exit system calls
-            l = (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
-            syscall_ent.append(l)
+            l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
+            syscall.append(l)
             print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
         elif(sys_event.identifier == 0):
             #printing enter system calls
-            l = (sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys)
-            syscall_ex.append(l)
+            l = (0, sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys)
+            syscall.append(l)
             print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys))
         elif(sys_event.identifier == 2):
             #printing method enter calls
@@ -476,11 +550,12 @@ else: #parent
             #sleep(0.05)
             #print_event_hash()
         except KeyboardInterrupt:
-            print("KB Interrupt: Exiting...")
+            print("KB Interrupt: Warning: tracing may not have properly completed")
+            result = organise(syscall, method, n, x_children)
             exit()
         except OSError:
             #syscalls, methodcalls = organise(syscall_ent, syscall_ex, method, n, x_children)
-            #organise(syscall_ent, syscall_ex, method, n, x_children)
+            result = organise(syscall, method, n, x_children)
             #take method data
             #split up into pids, order by time
             #work outwards from the middle finding matching pairs, after going through them all use a sorting algorithm
