@@ -20,6 +20,7 @@ import os
 import subprocess
 import prctl
 import operator
+from datetime import datetime
 from elftools.elf.elffile import ELFFile
 from elftools.common.py3compat import bytes2str
 
@@ -178,11 +179,39 @@ def organise(syscall_list, method_list, parent, x_children):
     print(merged)
     return merged
 
+def save_data(data, parent, x_children):
+    time = datetime.now()
+    file_string = time.strftime("Tracing_data_%d.%m.%Y_%H:%M:%S")
+    #print(file_string)
+    f = open(file_string, 'w')
+    for i in data[parent][0]:
+        f.write(str(i) + "\n")
+    for i in data[parent][1]:
+        f.write(str(i) + "\n")
+    for i in x_children:
+        for j in data[i][0]:
+            f.write(str(j) + "\n")
+        for j in data[i][1]:
+            f.write(str(j) + "\n")
+    
+def load_data(file):
+    temp_str = ""
+    temp_tpl = ()
+    data = {}
+    f = open(file, 'r')
+    for i in f:
+        temp_str = i[1:len(i)-1].split(", ")
+        if len(temp_str) == 5:
+            temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(i)-1], int(temp_str[4]))
+        elif len(temp_str) == 4:
+            temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(i)-1])
+        data[temp_tpl[1]] = temp_tpl
+    return data
 
             
         
 
-
+prctl.set_child_subreaper(1)
 
 program = "testfork"
 exec_program = "./" + program
@@ -492,7 +521,7 @@ else: #parent
         bpf.attach_uretprobe(name=exec_program, sym=methods, fn_name="method_exit")
 
 
-    prctl.set_child_subreaper(1)
+    #prctl.set_child_subreaper(1)
 
 
     os.kill(n, signal.SIGUSR1)
@@ -519,24 +548,24 @@ else: #parent
         sys_event = bpf["events"].event(data)
         if(sys_event.identifier == 1):
             #printing exit system calls
-            l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
+            l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret)
             syscall.append(l)
-            print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret))
+            print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32).decode('utf-8'), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret))
         elif(sys_event.identifier == 0):
             #printing enter system calls
-            l = (0, sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys)
+            l = (0, sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys)
             syscall.append(l)
-            print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys), sys_event.ent_sys))
+            print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32).decode('utf-8'), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys))
         elif(sys_event.identifier == 2):
             #printing method enter calls
-            l = (2, sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32))
+            l = (2, sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32).decode('utf-8'))
             method.append(l)
-            print("method ent: %-20d %12d %8d %15s" % (sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32)))
+            print("method ent: %-20d %12d %8d %15s" % (sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32).decode('utf-8')))
         elif(sys_event.identifier == 3):
             #printing method exit calls
-            l = (3, sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret)
+            l = (3, sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32).decode('utf-8'), sys_event.ex_ret)
             method.append(l)
-            print("method ex: %-20d %12d %8d %15s %12d" % (sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret))
+            print("method ex: %-20d %12d %8d %15s %12d" % (sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32).decode('utf-8'), sys_event.ex_ret))
         elif(sys_event.identifier == 4):
             #process has spawned
             x_children.append(sys_event.ent_pid32)
@@ -561,6 +590,7 @@ else: #parent
             #work outwards from the middle finding matching pairs, after going through them all use a sorting algorithm
             #combine the syscall lists
             print("Program has shut down, or can no longer be found")
+            save_data(result, n, x_children)
             #break
             exit()
         
