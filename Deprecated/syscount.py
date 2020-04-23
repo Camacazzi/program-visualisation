@@ -76,89 +76,27 @@ if args.list:
     sys.exit(0)
 
 text = """
-    //have a map wiith a meaningless key at the beginning, and in each leaf have the
-    //syscall name, PID, pid_tgid>>32
+
+BPF_HASH(data, u32, u64);
 
 
-    struct data_t{
-        u64 ent_pid_tgid; // process id
-        u32 ent_pid32; //pid after the 32 bit shift
-        u32 ent_sys; // syscall
-        u64 ex_pid_tgid; // process id
-        u32 ex_pid32; //pid after the 32 bit shift
-        u32 ex_sys; // syscall
-        u32 ex_ret; //return arguments
-    };
-
-    /*struct data_exit {
-        u64 pid_tgid; // process id
-        u32 pid32; //pid after the 32 bit shift
-        u32 sys; // syscall
-        u32 ret; //return arguments
-    };*/
-
-    //BPF_HASH(count, u32, u32);
-    BPF_HASH(data, u64, struct data_t, 500000);
-    //BPF_HASH(data_exit_hash, u64, struct data_exit, 500000);
-
-
-    //BPF_PERF_OUTPUT(events);
-    /*
-    TRACEPOINT_PROBE(raw_syscalls,sys_enter){
-        struct data_enter val = {};
-        //u64 pid_tgid = bpf_get_current_pid_tgid();
-        //u32 key32 = pid_tgid >> 32;
-        //u32 sys = args->id;
-        val.pid_tgid = bpf_get_current_pid_tgid();
-        val.pid32 = val.pid_tgid >> 32;
-        val.sys = args->id;
-
-        events.perf_submit(args, &val, sizeof(val));
-
+TRACEPOINT_PROBE(raw_syscalls, sys_exit) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+#ifdef FILTER_PID
+    if (pid_tgid >> 32 != FILTER_PID)
         return 0;
-    }*/
+#endif
+    u32 key = args->id;
 
-    TRACEPOINT_PROBE(raw_syscalls, sys_enter){
-        #ifdef FILTER_PID
-        if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
-            return 0;
-        #endif
 
-        struct data_t *val, zero= {};
-        u64 t = bpf_ktime_get_ns();
-        val = data.lookup_or_try_init(&t, &zero);
-        
-        if(val){
-            val->ent_pid_tgid = bpf_get_current_pid_tgid();
-            val->ent_pid32 = val->ent_pid_tgid >> 32;
-            val->ent_sys = args->id;
-            val->ex_pid_tgid = 0;
-            val->ex_pid32 = 0;
-            val->ex_sys = 0;
-            val->ex_ret = 0;
-        }
-        return 0;
+    u64 *val, zero = 0;
+    val = data.lookup_or_try_init(&key, &zero);
+    if (val) {
+        ++(*val);
     }
 
-    TRACEPOINT_PROBE(raw_syscalls, sys_exit){
-        #ifdef FILTER_PID
-        if (bpf_get_current_pid_tgid() >> 32 != FILTER_PID)
-            return 0;
-        #endif
-        struct data_t *val, zero={};
-        u64 t = bpf_ktime_get_ns();
-        val = data.lookup_or_try_init(&t, &zero);
-        if(val){
-            val->ent_pid_tgid = 0;
-            val->ent_pid32 = 0;
-            val->ent_sys = 0;
-            val->ex_pid_tgid = bpf_get_current_pid_tgid();
-            val->ex_pid32 = val->ex_pid_tgid >> 32;
-            val->ex_sys = args->id;
-            val->ex_ret = args->ret;
-        }
-        return 0;
-    }
+    return 0;
+}
 """
 
 if args.pid:
