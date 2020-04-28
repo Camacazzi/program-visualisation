@@ -17,7 +17,6 @@ from bcc.utils import printb
 from bcc.syscall import syscall_name, syscalls
 import json
 import os
-#import subprocess
 import prctl
 import operator
 from datetime import datetime
@@ -31,12 +30,16 @@ else:
 
 prctl.set_child_subreaper(1)
 
-syscall = []
-method = []
-method_merged = []
-x_children = []
+#syscall = []
+#method = []
+#method_merged = []
+#x_children = []
+
+timeout = 500
 
 
+
+#123
 # signal handler
 def signal_ignore(signal, frame):
     print()
@@ -102,12 +105,14 @@ def print_event_perf(cpu, data, size):
         #printing exit system calls
         l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret)
         syscall.append(l)
-        print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32).decode('utf-8'), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret))
+        #print(syscall)
+        #print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32).decode('utf-8'), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret))
     elif(sys_event.identifier == 0):
         #printing enter system calls
         l = (0, sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys)
         syscall.append(l)
-        print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32).decode('utf-8'), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys))
+        #print(l)
+        #print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32).decode('utf-8'), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys))
     elif(sys_event.identifier == 2):
         #printing method enter calls
         l = (2, sys_event.time, sys_event.ent_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ent_pid32).decode('utf-8'))
@@ -138,6 +143,8 @@ def organise(syscall_list, method_list, parent, x_children):
     #find last occurence of a method enter occurring for that pid, that and the subsequent method exit are the same, do eqn and do calcs, store in dic, then del from array
     #search index up for next occurence of 2, repeat process until index of 0 reached
     # ident, sys_event.time, sys_event.ex_pid32, sys_event.ip, bpf.sym(sys_event.ip, sys_event.ex_pid32), sys_event.ex_ret)
+    #print(syscall_list)
+    #print(method_list)
     curr_pid = method_list[0][2] 
     i = 1
     last_ent_index = 0
@@ -197,6 +204,8 @@ def organise(syscall_list, method_list, parent, x_children):
                 i = 0
                 curr_pid = method_list[0][2]
     #now to load them into the merged dictionary
+    method_temp.sort(key = operator.itemgetter(0))
+    #print(method_temp)
     for i in range(len(method_temp)):
         merged[method_temp[i][2]][0].append(method_temp[i])   
     #print(merged)
@@ -205,7 +214,7 @@ def organise(syscall_list, method_list, parent, x_children):
     syscall_list.sort(key = operator.itemgetter(3,1))
     i = 0
     j = 0
-    print(syscall_list)
+    #print(syscall_list)
     #(1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys),sys_event.ex_sys, sys_event.ex_ret)
     exec_reached = 0
     #right now I'm assuming we should be looking at an enter
@@ -214,20 +223,20 @@ def organise(syscall_list, method_list, parent, x_children):
         try:
             if syscall_list[i][5] == 59:
                 exec_reached = 1
-                print("i val first if: %d" % (i))
+                #print("i val first if: %d" % (i))
             if exec_reached == 0:
-                print("syscall: %s" % (syscall_list[i][4]))
-                print("i val second if: %d" % (i))
+                #print("syscall: %s" % (syscall_list[i][4]))
+                #print("i val second if: %d" % (i))
                 i = i + 1
                 continue
             else:
                 if(syscall_list[i][5] == syscall_list[i+1][5]):
                     #all is good in the world, I think
-                    print("i val 3rd if: %d" % (i))
+                    #print("i val 3rd if: %d" % (i))
                     merged[syscall_list[i][3]][1].append((syscall_list[i][1], syscall_list[i+ 1][1]-syscall_list[i][1], syscall_list[i][3], syscall_list[i][4], syscall_list[i+1][6]))
                 else:
-                    print("i val 2nd else if: %d" % (i))
-                    print("i: %d i+1: %d" % (syscall_list[i][5], syscall_list[i+1][5]))
+                    #print("i val 2nd else if: %d" % (i))
+                    #("i: %d i+1: %d" % (syscall_list[i][5], syscall_list[i+1][5]))
                     #fire and chaos, a process may not of exited correctly, leaving a hanging syscall, or exit_group was called
                     #append this lone strangler, having duration be -1, assuming it's an enter
                     #advance the ticker by 1
@@ -241,7 +250,7 @@ def organise(syscall_list, method_list, parent, x_children):
             i = i + 1
 
 
-    print(merged)
+    #print(merged)
     return merged
 
 def save_data(data, parent, x_children):
@@ -273,14 +282,25 @@ def load_data(file):
         data[temp_tpl[1]] = temp_tpl
     return data
 
-            
-        
-def main():
+
+#def main():     
+def main(program_path):
+    global syscall
+    global method
+    global method_merged
+    global x_children
+    print("setting stores to empty")
+    syscall = []
+    method = []
+    method_merged = []
+    x_children = []
+    counter = 0
 
     #prctl.set_child_subreaper(1)
 
-    program = "testfork"
-    exec_program = "./" + program
+    #program = "testfork"
+    #exec_program = "./" + program
+    exec_program = program_path
 
 
     n = os.fork()
@@ -523,8 +543,8 @@ def main():
         #symbols = []
 
         #retrieve symbol data (if we intend to)
-        print('Processing file:', program)
-        symbols = retrieve_pub_functions(program)
+        print('Processing file:', program_path)
+        symbols = retrieve_pub_functions(program_path)
         if(symbols == -1):
             print("No debug info available, yet the program has been told that there is. Exiting\n")
 
@@ -545,22 +565,30 @@ def main():
         bpf["events"].open_perf_buffer(print_event_perf)
         while 1:
             try:
-                bpf.perf_buffer_poll()
+                bpf.perf_buffer_poll(timeout=5)
                 os.waitpid(-1, os.WNOHANG)
+                """if(counter < timeout):
+                    counter = counter + 1
+                    print("Counter: "+ str(counter) + "\n")
+                else:
+                    print("Timeout reached")
+                    result = organise(syscall, method, n, x_children)
+                    return result, n, x_children
+                    exit()"""
             except KeyboardInterrupt:
                 print("KB Interrupt: Warning: tracing may not have properly completed")
                 result = organise(syscall, method, n, x_children)
-                return result
-                #exit()
+                return result, n, x_children
+                exit()
             except OSError:
                 result = organise(syscall, method, n, x_children)
                 print("Program has shut down, or can no longer be found. Tracing is ending.")
                 save_data(result, n, x_children)
                 #send to main program
-                return result
+                return result, n, x_children
                 #break
-                #exit()
-
+                exit()
+#main()
                 
             
 
