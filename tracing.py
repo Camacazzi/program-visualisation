@@ -256,7 +256,7 @@ def organise(syscall_list, method_list, parent, x_children):
 
 def save_data(data, parent, x_children):
     time = datetime.now()
-    file_string = time.strftime("Tracing_data_%d.%m.%Y_%H:%M:%S")
+    file_string = time.strftime("Tracing_data_%d.%m.%Y_%H:%M:%S.trc")
     #print(file_string)
     f = open(file_string, 'w')
     for i in data[parent][0]:
