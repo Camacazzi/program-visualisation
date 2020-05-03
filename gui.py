@@ -5,9 +5,7 @@ import os
 import prctl
 from time import sleep
 
-#global output
-#global parent
-#global children
+
 frames = []
 
 prctl.set_child_subreaper(1)
@@ -17,7 +15,7 @@ class MainWindow(wx.Frame):
         #hSizer = wx.BoxSizer(wx.HORIZONTAL)
         vSizer = wx.BoxSizer(wx.VERTICAL)
         #vSizer.AddStretchSpacer(1)
-
+        hSizer = wx.BoxSizer(wx.HORIZONTAL)
 
         filemenu = wx.Menu()
 
@@ -33,12 +31,17 @@ class MainWindow(wx.Frame):
 
         #panel= wx.Panel(self)
         #self.quote = wx.StaticText(panel, label="Your quote: ", pos=(20, 30))
-        #lWMBlabel = "Run Program\n".center(5)+"(already compiled with -gpubnames)".center(5)
+        self.userChoiceDropDown = wx.ComboBox(self, wx.ID_ANY, "Pick one", choices = ["Root", "Specified User"], size=(200, -1))
+        self.userChoiceText = wx.TextCtrl(self, wx.ID_ANY, "User name here", size=(200, -1))
+        hSizer.Add(self.userChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+        hSizer.Add(self.userChoiceText, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
         loadWithMethodsButton = wx.Button(self, wx.ID_ANY, "Run Program\n(already compiled with -gpubnames)")
         loadNoMethodsButton = wx.Button(self, wx.ID_ANY, "Run Program (no -gpubnames)")
         loadTracingFile = wx.Button(self, wx.ID_ANY, "Load tracing file")
         #grid.Add(loadWithMethodsButton, pos = (3,3))
         #vSizer.Add(loadWithMethodsButton, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        #vSizer.Add(self.userChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+        vSizer.Add(hSizer,0, wx.ALL, 5)
         vSizer.Add(loadWithMethodsButton, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
         #vSizer.AddStretchSpacer(1)
         #vSizer.Add(loadNoMethodsButton, 0, wx.ALIGN_CENTER_HORIZONTAL)
@@ -50,8 +53,9 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
-        self.Bind(wx.EVT_BUTTON, self.loadWithMethods, loadWithMethodsButton)
 
+        self.Bind(wx.EVT_COMBOBOX, self.userChoice, self.userChoiceDropDown)
+        self.Bind(wx.EVT_BUTTON, self.loadWithMethods, loadWithMethodsButton)
         self.Bind(wx.EVT_BUTTON, self.loadFile, loadTracingFile)
 
         #hSizer.Add(grid, 0, wx.ALL, 5)
@@ -70,6 +74,9 @@ class MainWindow(wx.Frame):
 
     def OnExit(self, event):
         self.Close(True)
+
+    def userChoice(self, event):
+        print(self.userChoiceDropDown.GetValue())
     
     def loadFile(self):
         self.dirname = ""
@@ -86,24 +93,41 @@ class MainWindow(wx.Frame):
         return location
     
     def loadWithMethods(self, event):
-        #dlg = wx.MessageDialog(self, "Load with methods", "About Program")
+        
 
-        #dlg.ShowModal()
-        #dlg.Destroy()
+        #check for if user is running by root or given user
+        print(self.userChoiceDropDown.GetValue())
+        choice = self.userChoiceDropDown.GetValue()
+        if(choice == "Pick one"):
+            wx.MessageBox("Please pick if user running program is root or otherwise")
+        elif(choice == "Specified User"):
+            print(self.userChoiceText.GetValue())
+            choice = self.userChoiceText.GetValue()
+            #grab the user name
+            #set choice to the given name
+
+        #presuming root otherwise, don't change choice
+
 
         program_path = self.loadFile()
         #print(program_path)
         #ask for executable
 
         #run tracing, pass in program name and location
-
-        output, parent_pid, children = tracing.main(program_path)
-        #print(output)
-        frames.append(SubWindow(frame, str(parent_pid)+" Tracing Output", output[parent_pid]))
-        for i in children:
-            frames.append(SubWindow(frame, str(i)+" Tracing Output", output[i]))
-        #receive tracing file and file of children
-        #pass subset of the dictionary to each window
+        output = tracing.main(program_path, choice)
+        if(output == -1):
+            print("An error has occurred")
+            wx.MessageBox("An error has occurred. Please check console for more detail")
+        else:
+            tracing_data = output[0]
+            parent_pid = output[1]
+            children = output[2]
+            #print(output)
+            frames.append(SubWindow(frame, str(parent_pid)+" Tracing Output", tracing_data[parent_pid]))
+            for i in children:
+                frames.append(SubWindow(frame, str(i)+" Tracing Output", tracing_data[i]))
+            #receive tracing file and file of children
+            #pass subset of the dictionary to each window
     
     def loadNoMethods(self, event):
         dlg = wx.MessageDialog(self, "Load no methods", "About Program")

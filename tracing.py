@@ -19,6 +19,7 @@ import json
 import os
 import prctl
 import operator
+import pwd
 from datetime import datetime
 from elftools.elf.elffile import ELFFile
 from elftools.common.py3compat import bytes2str
@@ -284,7 +285,7 @@ def load_data(file):
 
 
 #def main():     
-def main(program_path):
+def main(program_path, user):
     global syscall
     global method
     global method_merged
@@ -301,10 +302,26 @@ def main(program_path):
     #program = "testfork"
     #exec_program = "./" + program
     exec_program = program_path
+    if(user!="Root"):
+        try:
+            uid = pwd.getpwnam(user).pw_uid
+        except Exception as e:
+            if(e == errno.ESRCH):
+                print("User not found")
+                return -1
+            else:
+                print("Unknown error")
+                return -1
 
+    print("uid: " + str(uid) + "\n")
 
     n = os.fork()
     if n == 0: #child
+        #switching to given user if not root
+        if(user!="Root"):
+            print("switching uid")
+            os.setuid(uid)
+        print(os.getuid())
         print("child waiting for signal")
         #signal.pause()
         signal.signal(signal.SIGUSR1, signal_ignore)
@@ -578,14 +595,16 @@ def main(program_path):
             except KeyboardInterrupt:
                 print("KB Interrupt: Warning: tracing may not have properly completed")
                 result = organise(syscall, method, n, x_children)
-                return result, n, x_children
+                #return result, n, x_children
+                return (result, n, x_children)
                 exit()
             except OSError:
                 result = organise(syscall, method, n, x_children)
                 print("Program has shut down, or can no longer be found. Tracing is ending.")
                 save_data(result, n, x_children)
                 #send to main program
-                return result, n, x_children
+                #return result, n, x_children
+                return (result, n, x_children)
                 #break
                 exit()
 #main()
