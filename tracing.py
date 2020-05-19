@@ -104,15 +104,17 @@ def print_event_perf(cpu, data, size):
     sys_event = bpf["events"].event(data)
     if(sys_event.identifier == 1):
         #printing exit system calls
-        l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret)
+        #l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret)
+        l = (1, sys_event.time, comm_for_pid(sys_event.ex_pid32), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.testret)
         syscall.append(l)
+        print("testret: %-20d" % (sys_event.testret))
         #print(syscall)
         #print("exit: %-20d %22s %12d %20s %15d %15d" % (sys_event.time, comm_for_pid(sys_event.ex_pid32).decode('utf-8'), sys_event.ex_pid32, syscall_name(sys_event.ex_sys).decode('utf-8'),sys_event.ex_sys, sys_event.ex_ret))
     elif(sys_event.identifier == 0):
         #printing enter system calls
         l = (0, sys_event.time, comm_for_pid(sys_event.ent_pid32), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys)
         syscall.append(l)
-        #print(l)
+        
         #print("enter: %-20d %22s %12d %20s %15d" % (sys_event.time, comm_for_pid(sys_event.ent_pid32).decode('utf-8'), sys_event.ent_pid32, syscall_name(sys_event.ent_sys).decode('utf-8'), sys_event.ent_sys))
     elif(sys_event.identifier == 2):
         #printing method enter calls
@@ -259,29 +261,96 @@ def save_data(data, parent, x_children):
     file_string = time.strftime("Tracing_data_%d.%m.%Y_%H:%M:%S.trc")
     #print(file_string)
     f = open(file_string, 'w')
+    f.write("D1 " + str(parent) + "\n")
+    f.write("D2 " + str(x_children) + "\n")
+    f.write(";" + "\n" + "M" + "\n")
+    
     for i in data[parent][0]:
         f.write(str(i) + "\n")
+    f.write(";" + "\n" + "S" + "\n")
     for i in data[parent][1]:
         f.write(str(i) + "\n")
     for i in x_children:
+        f.write(";" + "\n" + "M" + "\n")
         for j in data[i][0]:
             f.write(str(j) + "\n")
+        f.write(";" + "\n" + "S" + "\n")
         for j in data[i][1]:
             f.write(str(j) + "\n")
+    #idea: add a splitter to each section, with an identifier at the top of each section (method/syscall), and then split on that
+    #then use splitter again to split into individual items, and go through previous process to put them into individual items
     
 def load_data(file):
+    n = 0
+    x_children = []
     temp_str = ""
     temp_tpl = ()
-    data = {}
+    data = 0
     f = open(file, 'r')
-    for i in f:
-        temp_str = i[1:len(i)-1].split(", ")
+    """for i in f:
+        if(i[0] == 'D'):
+            temp_str = i.split(" ")
+            if(temp_str[0] == "D1"):
+                n = int(temp_str[1])
+            elif(temp_str[0] == "D2"):
+                x_children = temp_str[1]
+            continue
+        temp_str = i[1:len(i)-2].split(", ")
         if len(temp_str) == 5:
             temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(i)-1], int(temp_str[4]))
         elif len(temp_str) == 4:
             temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(i)-1])
-        data[temp_tpl[1]] = temp_tpl
-    return data
+        data[temp_tpl[2]] = temp_tpl
+    return (data, n, x_children)"""
+    f = f.read()
+    main_split = f.split(";")
+    temp_split = main_split[0].split("\n")
+    if(temp_split[0][0:2] == "D1"):
+        data_split = temp_split[0].split(" ")
+        n = int(data_split[1])
+        data_split2 = temp_split[1].split(" ")
+        x_children = data_split2[1]
+    else:
+        #something gone wrong
+        return -1
+    x_children = x_children[1:len(x_children)-1].split(",")
+    for i in range(len(x_children)):
+        x_children[i] = int(x_children[i])
+    #create spots for all children
+    data = {n: [[], []]}
+    print("x_child: "+ str(x_children))
+    for i in x_children:
+        data[i] = [[], []]
+    #now we can loop through the rest of the data
+
+    #NEED TO ADD THE BIT TO CHECK IF METHOD OR SYSCALL!!!!!
+    #m_or_s is the var that says if the block is a method block or syscall block
+    m_or_s = 0
+    #print("main split: " + str(main_split))
+    for i in range(1, len(main_split)):
+        temp_split = main_split[i].split("\n")
+        for j in temp_split:
+            if(j == 'M'):
+                m_or_s = 0
+                continue
+            elif(j == 'S'):
+                m_or_s = 1
+                continue
+            elif(j == ''):
+                continue
+            print("j: " + str(j))
+            temp_str = j[1:len(j)-1].split(", ")
+            print("temp_str: " + str(temp_str))
+            if len(temp_str) == 5:
+                temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(temp_str[3])-1], int(temp_str[4]))
+            elif len(temp_str) == 4:
+                temp_tpl = (int(temp_str[0]), int(temp_str[1]), int(temp_str[2]), temp_str[3][1:len(temp_str[3])-1])
+            print("tuple: "+str(temp_tpl))
+            data[temp_tpl[2]][m_or_s].append(temp_tpl)
+    return (data, n, x_children)
+
+        
+
 
 
 #def main():     
@@ -305,6 +374,7 @@ def main(program_path, user):
     if(user!="Root"):
         try:
             uid = pwd.getpwnam(user).pw_uid
+            print("uid: " + str(uid) + "\n")
         except Exception as e:
             if(e == errno.ESRCH):
                 print("User not found")
@@ -312,8 +382,10 @@ def main(program_path, user):
             else:
                 print("Unknown error")
                 return -1
-
-    print("uid: " + str(uid) + "\n")
+    else:
+        print("running in root")
+        print(os.getuid())
+    
 
     n = os.fork()
     if n == 0: #child
@@ -337,6 +409,7 @@ def main(program_path, user):
         #define the bpf program to run
         text = """
         #include <uapi/linux/ptrace.h>
+        //#include <stdio.h>
 
         struct data_t{
             u64 ent_pid_tgid; // process id
@@ -346,6 +419,7 @@ def main(program_path, user):
             u32 ex_pid32; //pid after the 32 bit shift
             u32 ex_sys; // syscall
             u32 ex_ret; //return arguments
+            //u64 ex_ret;
         };
 
         //identifier: 0 = system call enter, 1 = system call exit, 2 = method enter, 3 = method exit, 4 = child notification
@@ -359,7 +433,9 @@ def main(program_path, user):
             u32 ex_pid32; //pid after the 32 bit shift
             u32 ex_sys; // syscall
             u32 ex_ret; //return arguments
+            //u64 ex_ret;
             u64 ip; //instruction pointer
+            s32 testret;
         };
         
         struct data_method{
@@ -480,6 +556,8 @@ def main(program_path, user):
                 val_perf.ex_sys = val->ex_sys;
                 val_perf.ex_ret = val->ex_ret;
                 val_perf.ip = 0;
+                //bpf_trace_printk(\"%d\", args->id);
+                val_perf.testret = args->ret;
                 events.perf_submit(args, &val_perf, sizeof(val_perf));
             }
             return 0;

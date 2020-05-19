@@ -56,7 +56,7 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_COMBOBOX, self.userChoice, self.userChoiceDropDown)
         self.Bind(wx.EVT_BUTTON, self.loadWithMethods, loadWithMethodsButton)
-        self.Bind(wx.EVT_BUTTON, self.loadFile, loadTracingFile)
+        self.Bind(wx.EVT_BUTTON, self.loadTraceFile, loadTracingFile)
 
         #hSizer.Add(grid, 0, wx.ALL, 5)
         #vSizer.Add(hSizer, 0, wx.ALL, 5)
@@ -100,6 +100,7 @@ class MainWindow(wx.Frame):
         choice = self.userChoiceDropDown.GetValue()
         if(choice == "Pick one"):
             wx.MessageBox("Please pick if user running program is root or otherwise")
+            return
         elif(choice == "Specified User"):
             print(self.userChoiceText.GetValue())
             choice = self.userChoiceText.GetValue()
@@ -135,13 +136,36 @@ class MainWindow(wx.Frame):
         dlg.ShowModal()
         dlg.Destroy()
 
-    #def spawnWindows(self, event, data)
+    def loadTraceFile(self, event):
+        save_path = self.loadFile()
+        print(save_path)
+        output = tracing.load_data(save_path)
+        print(output[0])
+        print(output[1])
+        print(output[2])
+
+        if(output == -1):
+            print("An error has occurred")
+            wx.MessageBox("An error has occurred. Please check console for more detail")
+        else:
+            tracing_data = output[0]
+            parent_pid = output[1]
+            children = output[2]
+            #print(output)
+            frames.append(SubWindow(frame, str(parent_pid)+" Tracing Output", tracing_data[parent_pid]))
+            for i in children:
+                frames.append(SubWindow(frame, str(i)+" Tracing Output", tracing_data[i]))
+            #receive tracing file and file of children
+            #pass subset of the dictionary to each window
+
 
 
 class SubWindow(wx.Frame):
     def __init__(self, parent, title, output):
         wx.Frame.__init__(self, parent, title=title, size=(500,250))
         #print(trace_target)
+        
+
         screenSize = wx.DisplaySize()
         screenWidth = screenSize[0]
         screenHeight = screenSize[1]
@@ -149,6 +173,11 @@ class SubWindow(wx.Frame):
         vSizer2 = wx.BoxSizer(wx.VERTICAL)
 
         hSizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        #panel2 = wx.Panel(self)
+        #self.displayChoiceDropDown = wx.ComboBox(panel2, wx.ID_ANY, "Default", choices = ["Default", "Syscall Execution Graph"], size=(200, -1))
+        #hSizer.Add(self.displayChoiceDropDown)
+
         panel = wx.lib.scrolledpanel.ScrolledPanel(self,-1, size=(screenWidth,400), pos=(0,28), style=wx.SIMPLE_BORDER)
         panel.SetupScrolling()
 
@@ -192,10 +221,14 @@ class SubWindow(wx.Frame):
         panel.SetSizer(hSizer)
         #self.FitInside()
         #self.SetScrollRate(5, 5)
+        
+        
 
         trace_data = output
         print(trace_data)
         self.Show(True)
+        #sleep(2)
+        #.panel2.Hide()
 
 
 app=wx.App(False)
