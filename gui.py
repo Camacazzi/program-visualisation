@@ -194,12 +194,13 @@ class SubWindow(wx.Frame):
         methodButtons = []
         j = 0
 
+        start = output[1][0][0]
         for i in output[1]:
             #string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
             try:
-                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
+                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
             except IndexError: 
-                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nNo return value"
+                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value"
             sysButtons.append(wx.Button(panel, wx.ID_ANY, string))
             self.vSizerSyscall.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
             j = j + 1
@@ -207,9 +208,9 @@ class SubWindow(wx.Frame):
         j = 0
         for i in output[0]:
             try:
-                string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
+                string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
             except IndexError:
-                string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nNo return value "
+                string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value "
             #methodButtons.append(wx.Button(self, wx.ID_ANY, string))
             methodButtons.append(wx.Button(panel, wx.ID_ANY, string))
             self.vSizerMethod.Add(methodButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
