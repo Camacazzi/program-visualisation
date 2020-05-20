@@ -4,6 +4,13 @@ import tracing
 import os
 import prctl
 from time import sleep
+import operator
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.figure import Figure
+matplotlib.use('WXAgg')
+plt.style.use('ggplot')
 
 
 frames = []
@@ -162,24 +169,26 @@ class MainWindow(wx.Frame):
 
 class SubWindow(wx.Frame):
     def __init__(self, parent, title, output):
-        wx.Frame.__init__(self, parent, title=title, size=(500,250))
-        #print(trace_target)
-        
+        wx.Frame.__init__(self, parent, title=title, size=(500,250))        
 
         screenSize = wx.DisplaySize()
         screenWidth = screenSize[0]
         screenHeight = screenSize[1]
-        vSizer1 = wx.BoxSizer(wx.VERTICAL)
-        vSizer2 = wx.BoxSizer(wx.VERTICAL)
 
-        hSizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.mainVSizer = wx.BoxSizer(wx.VERTICAL)
+        self.vSizerSyscall = wx.BoxSizer(wx.VERTICAL)
+        self.vSizerMethod = wx.BoxSizer(wx.VERTICAL)
 
-        #panel2 = wx.Panel(self)
-        #self.displayChoiceDropDown = wx.ComboBox(panel2, wx.ID_ANY, "Default", choices = ["Default", "Syscall Execution Graph"], size=(200, -1))
-        #hSizer.Add(self.displayChoiceDropDown)
+        self.hSizerDropDown = wx.BoxSizer(wx.HORIZONTAL)
+        self.hSizerDetailed = wx.BoxSizer(wx.HORIZONTAL)
+        self.hSizerTimeGraph = wx.BoxSizer(wx.HORIZONTAL)
 
         panel = wx.lib.scrolledpanel.ScrolledPanel(self,-1, size=(screenWidth,400), pos=(0,28), style=wx.SIMPLE_BORDER)
         panel.SetupScrolling()
+
+        self.displayChoiceDropDown = wx.ComboBox(panel, wx.ID_ANY, "Default", choices = ["Detailed", "Syscall Execution Graph"], size=(200, -1))
+        self.hSizerDropDown.Add(self.displayChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+        self.Bind(wx.EVT_COMBOBOX, self.swapView, self.displayChoiceDropDown)
 
         sysButtons = []
         methodButtons = []
@@ -192,7 +201,7 @@ class SubWindow(wx.Frame):
             except IndexError: 
                 string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nNo return value"
             sysButtons.append(wx.Button(panel, wx.ID_ANY, string))
-            vSizer1.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+            self.vSizerSyscall.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
             j = j + 1
         
         j = 0
@@ -203,32 +212,79 @@ class SubWindow(wx.Frame):
                 string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nNo return value "
             #methodButtons.append(wx.Button(self, wx.ID_ANY, string))
             methodButtons.append(wx.Button(panel, wx.ID_ANY, string))
-            vSizer2.Add(methodButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+            self.vSizerMethod.Add(methodButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
             j = j + 1
-        """Button1 = wx.Button(self, wx.ID_ANY, "But1")
-        Button2 = wx.Button(self, wx.ID_ANY, "But2")
-        Button3 = wx.Button(self, wx.ID_ANY, "But3")
-        Button4 = wx.Button(self, wx.ID_ANY, "But4")"""
-
-        """vSizer1.Add(Button1, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
-        vSizer1.Add(Button2, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
-        hSizer.Add(vSizer1, 0, wx.ALL | wx.EXPAND, 5)
-        vSizer2.Add(Button3, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
-        vSizer2.Add(Button4, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
-        hSizer.Add(vSizer2, 0, wx.ALL| wx.EXPAND, 5)"""
-        hSizer.Add(vSizer1, 0, wx.ALL | wx.EXPAND, 5)
-        hSizer.Add(vSizer2, 0, wx.ALL| wx.EXPAND, 5)
-        panel.SetSizer(hSizer)
-        #self.FitInside()
-        #self.SetScrollRate(5, 5)
         
+        #collect bar graph info
+
+        #WARNING: AWFUL CODE FOLLOWING!!!!!!
+        syscall_times = {}
+        for i in output[1]:
+            try:
+                syscall_times[str(i[3])] = syscall_times[str(i[3])] + int(i[1])
+            except:
+                syscall_times[str(i[3])] = int(i[1])
+
+        syscall_array = []
+        j = 0
+        for key, value in syscall_times.items():
+            syscall_array.append((key, value))
+        syscall_array.sort(key = operator.itemgetter(1), reverse=True)
+        syscall_names = []
+        syscall_values = []
+        for i in syscall_array:
+            syscall_names.append(i[0])
+            syscall_values.append(i[1])
+
+
+        fig = plt.figure()
+
+        ax = fig.add_subplot(111)
+
+        ax.bar(syscall_names,syscall_values)
+  
+        ax.set_xticklabels(syscall_names, rotation = 45)
+        plt.yscale("log")
+
+        canvas = FigureCanvas(panel, -1, fig)
+
+
+        self.hSizerTimeGraph.Add(canvas, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+
+
+
+
+        self.hSizerDetailed.Add(self.vSizerSyscall, 0, wx.ALL | wx.EXPAND, 5)
+        self.hSizerDetailed.Add(self.vSizerMethod, 0, wx.ALL| wx.EXPAND, 5)
         
 
-        trace_data = output
-        print(trace_data)
+        self.mainVSizer.Add(self.hSizerDropDown, 0, wx.ALL| wx.EXPAND, 5)
+        self.mainVSizer.Add(self.hSizerDetailed, 0, wx.ALL| wx.EXPAND, 5)
+        self.mainVSizer.Add(self.hSizerTimeGraph, 0, wx.ALL| wx.EXPAND, 5)
+
+        panel.SetSizer(self.mainVSizer)
+
+        self.hSizerTimeGraph.Hide(self)
+        self.hSizerTimeGraph.ShowItems(show=False)
+
         self.Show(True)
-        #sleep(2)
-        #.panel2.Hide()
+    
+    def swapView(self, event):
+        choice = self.displayChoiceDropDown.GetValue()
+        if(choice == "Detailed"):
+            self.hSizerTimeGraph.Hide(self)
+            self.hSizerTimeGraph.ShowItems(show=False)
+            self.hSizerDetailed.Show(self)
+            self.hSizerDetailed.ShowItems(show=True)
+            
+        elif(choice == "Syscall Execution Graph"):
+            self.hSizerDetailed.Hide(self)
+            self.hSizerDetailed.ShowItems(show=False)
+            self.hSizerTimeGraph.Show(self)
+            self.hSizerTimeGraph.ShowItems(show=True)
+
+
+
 
 
 app=wx.App(False)
