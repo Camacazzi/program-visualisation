@@ -192,9 +192,39 @@ class SubWindow(wx.Frame):
 
         sysButtons = []
         methodButtons = []
-        j = 0
+        gauges = []
+        
+
+        stdioFound = 0
+        buffer = 0
+        try:
+            f = open("/usr/include/stdio.h", 'r')
+            stdioFound = 1
+            for i in f:
+                if(i[0:14] == "#define BUFSIZ"):
+                    buffer = int(i[15:len(i)-1])
+                    print(buffer)
+        except:
+            #stido.h not in there...
+            print("stdio.h not in /usr/include")
+            try:
+                f = open("/usr/local/include/sdio.h", 'r')
+                stdioFound = 1
+                for i in f:
+                    if(i[0:14] == "#define BUFSIZ"):
+                        buffer = int(i[15:len(i)-1])
+                        print(buffer)
+            except:
+                print("stdio.h not in /usr/local/include either...")
+        
+        if(buffer == 0):
+            stdioFound = 0
+            print("Didn't find buffer value")
+
 
         start = output[1][0][0]
+        j = 0
+        k = 0
         for i in output[1]:
             #string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
             try:
@@ -202,7 +232,19 @@ class SubWindow(wx.Frame):
             except IndexError: 
                 string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value"
             sysButtons.append(wx.Button(panel, wx.ID_ANY, string))
+            
+            
             self.vSizerSyscall.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+            if(stdioFound == 1 and str(i[3]) == "write"):
+                #add wx.gauge here
+                gauges.append(wx.Gauge(panel, range = buffer, size = (100, 25), style = wx.GA_HORIZONTAL))
+                if(int(i[4]) < buffer/100):
+                    gauges[k].SetValue(buffer/100 + 1)
+                else:
+                    gauges[k].SetValue(int(i[4]))
+                
+                self.vSizerSyscall.Add(gauges[k], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
+                k = k + 1
             j = j + 1
         
         j = 0
