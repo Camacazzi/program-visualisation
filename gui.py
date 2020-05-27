@@ -190,6 +190,11 @@ class SubWindow(wx.Frame):
         self.hSizerDropDown.Add(self.displayChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
         self.Bind(wx.EVT_COMBOBOX, self.swapView, self.displayChoiceDropDown)
 
+        self.syscall_text = wx.StaticText(panel, label="System Calls", pos = (20, 0))
+        self.vSizerSyscall.Add(self.syscall_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
+        self.method_text = wx.StaticText(panel, label="User Methods", pos = (20, 0))
+        self.vSizerMethod.Add(self.method_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
+
         sysButtons = []
         methodButtons = []
         gauges = []
