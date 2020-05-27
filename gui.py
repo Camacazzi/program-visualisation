@@ -182,11 +182,12 @@ class SubWindow(wx.Frame):
         self.hSizerDropDown = wx.BoxSizer(wx.HORIZONTAL)
         self.hSizerDetailed = wx.BoxSizer(wx.HORIZONTAL)
         self.hSizerTimeGraph = wx.BoxSizer(wx.HORIZONTAL)
+        self.hSizerTimeline = wx.BoxSizer(wx.HORIZONTAL)
 
         panel = wx.lib.scrolledpanel.ScrolledPanel(self,-1, size=(screenWidth,400), pos=(0,28), style=wx.SIMPLE_BORDER)
         panel.SetupScrolling()
 
-        self.displayChoiceDropDown = wx.ComboBox(panel, wx.ID_ANY, "Default", choices = ["Detailed", "Syscall Execution Graph"], size=(200, -1))
+        self.displayChoiceDropDown = wx.ComboBox(panel, wx.ID_ANY, "Default", choices = ["Detailed", "Timeline", "Syscall Execution Graph"], size=(200, -1))
         self.hSizerDropDown.Add(self.displayChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
         self.Bind(wx.EVT_COMBOBOX, self.swapView, self.displayChoiceDropDown)
 
@@ -258,7 +259,6 @@ class SubWindow(wx.Frame):
                 string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
             except IndexError:
                 string = "Method: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value "
-            #methodButtons.append(wx.Button(self, wx.ID_ANY, string))
             methodButtons.append(wx.Button(panel, wx.ID_ANY, string))
             self.vSizerMethod.Add(methodButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
             j = j + 1
@@ -266,23 +266,6 @@ class SubWindow(wx.Frame):
         #collect bar graph info
 
         #WARNING: AWFUL CODE FOLLOWING!!!!!!
-        """syscall_times = {}
-        for i in output[1]:
-            try:
-                syscall_times[str(i[3])] = syscall_times[str(i[3])] + int(i[1])
-            except:
-                syscall_times[str(i[3])] = int(i[1])
-
-        syscall_array = []
-        j = 0
-        for key, value in syscall_times.items():
-            syscall_array.append((key, value))
-        syscall_array.sort(key = operator.itemgetter(1), reverse=True)
-        syscall_names = []
-        syscall_values = []
-        for i in syscall_array:
-            syscall_names.append(i[0])
-            syscall_values.append(i[1])"""
         syscall_times = {}
         for i in output[1]:
             try:
@@ -321,14 +304,47 @@ class SubWindow(wx.Frame):
 
 
         self.hSizerTimeGraph.Add(canvas, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
-
-
-
-
         self.hSizerDetailed.Add(self.vSizerSyscall, 0, wx.ALL | wx.EXPAND, 5)
         self.hSizerDetailed.Add(self.vSizerMethod, 0, wx.ALL| wx.EXPAND, 5)
-        
 
+        self.total_time = output[0][len(output[0])-1][0] + output[0][len(output[0])-1][1] - output[0][0][0]
+        #self.end_time = output[0][len(output)-1][0] + output[0][len(output)-1][1] - output[0][0][0]
+        x_offset = 50.0
+        y_offset = 150.0
+        line_start = 0
+        line_end = 0
+        self.drawing_method = []
+        for i in output[0]:
+            if(len(self.drawing_method) == 0):
+                line_start = ((i[0]-start) / self.total_time) * 1200
+                line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
+                print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
+                print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
+                print(line_start)
+                print(line_end)
+                self.drawing_method.append((x_offset + line_start, y_offset, x_offset + line_end, y_offset))
+            else:
+                line_start = ((i[0]-start)/self.total_time) * 1200
+                print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
+                print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
+                print(line_start)
+                
+                line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
+                print(line_end)
+                for j in range(len(self.drawing_method)-1, -1, -1):
+                    #print(j)
+                    if self.drawing_method[j][2] > line_start:
+                        y_offset = y_offset + 50.0
+                        self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
+                        break
+                    else:
+                        self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
+                        break
+        #print(self.drawing_method)
+
+        self.Bind(wx.EVT_PAINT, self.OnPaint)
+        self.paint = 0
+        
         self.mainVSizer.Add(self.hSizerDropDown, 0, wx.ALL| wx.EXPAND, 5)
         self.mainVSizer.Add(self.hSizerDetailed, 0, wx.ALL| wx.EXPAND, 5)
         self.mainVSizer.Add(self.hSizerTimeGraph, 0, wx.ALL| wx.EXPAND, 5)
@@ -338,7 +354,20 @@ class SubWindow(wx.Frame):
         self.hSizerTimeGraph.Hide(self)
         self.hSizerTimeGraph.ShowItems(show=False)
 
+        #self.output = output
+
         self.Show(True)
+    
+    def OnPaint(self, event=None):
+        dc = wx.PaintDC(self)
+        if self.paint == 1:
+            dc.SetPen(wx.Pen(wx.BLACK, 4))
+            for i in self.drawing_method:
+                dc.DrawLine(i[0], i[1], i[2], i[3])
+
+        else:
+            dc.Clear()
+
     
     def swapView(self, event):
         choice = self.displayChoiceDropDown.GetValue()
@@ -347,12 +376,24 @@ class SubWindow(wx.Frame):
             self.hSizerTimeGraph.ShowItems(show=False)
             self.hSizerDetailed.Show(self)
             self.hSizerDetailed.ShowItems(show=True)
+            self.paint = 0
+            self.Refresh()
             
         elif(choice == "Syscall Execution Graph"):
             self.hSizerDetailed.Hide(self)
             self.hSizerDetailed.ShowItems(show=False)
             self.hSizerTimeGraph.Show(self)
             self.hSizerTimeGraph.ShowItems(show=True)
+            self.paint = 0
+            self.Refresh()
+        
+        elif(choice == "Timeline"):
+            self.hSizerDetailed.Hide(self)
+            self.hSizerDetailed.ShowItems(show=False)
+            self.hSizerTimeGraph.Hide(self)
+            self.hSizerTimeGraph.ShowItems(show=False)
+            self.paint = 1
+            self.Refresh()
 
 
 
