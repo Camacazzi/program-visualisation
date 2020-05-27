@@ -651,6 +651,9 @@ def main(program_path, user):
         for methods in symbols:
             bpf.attach_uprobe(name=exec_program, sym=methods, fn_name="method_enter")
             bpf.attach_uretprobe(name=exec_program, sym=methods, fn_name="method_exit")
+        
+        #bpf.attach_uprobe(name=exec_program, sym=fprintf, fn_name="method_enter")
+        #bpf.attach_uretprobe(name=exec_program, sym=fprintf, fn_name="method_exit")
 
         #tell child to start tracing
         #need to change from sigusr1, it can get thrown out

@@ -15,7 +15,7 @@ int writing(pid_t pid){
 	// Write to the file
 	fprintf(file_pointer, "PID of child is : %d", pid);
     fflush(file_pointer);
-	fprintf(file_pointer, "Writing 2 eletric boogaloo : %d", pid);
+	fprintf(file_pointer, "Writing 2 electric boogaloo : %d", pid);
 	
 	// Close the file
 	fclose(file_pointer);

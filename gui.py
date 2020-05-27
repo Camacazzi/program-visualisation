@@ -261,7 +261,7 @@ class SubWindow(wx.Frame):
         #collect bar graph info
 
         #WARNING: AWFUL CODE FOLLOWING!!!!!!
-        syscall_times = {}
+        """syscall_times = {}
         for i in output[1]:
             try:
                 syscall_times[str(i[3])] = syscall_times[str(i[3])] + int(i[1])
@@ -277,9 +277,30 @@ class SubWindow(wx.Frame):
         syscall_values = []
         for i in syscall_array:
             syscall_names.append(i[0])
-            syscall_values.append(i[1])
+            syscall_values.append(i[1])"""
+        syscall_times = {}
+        for i in output[1]:
+            try:
+                syscall_times[str(i[3])][0] = syscall_times[str(i[3])][0] + int(i[1])
+                syscall_times[str(i[3])][1] = syscall_times[str(i[3])][1] + 1
+            except:
+                syscall_times[str(i[3])] = [int(i[1]), 1]
 
+        syscall_array = []
+        j = 0
+        for key, value in syscall_times.items():
+            syscall_array.append((key, value))
+        #syscall_array.sort(key = operator.itemgetter(1), reverse=True)
+        syscall_array = sorted(syscall_array, key=lambda x: x[1][0], reverse=True)
+        syscall_names = []
+        syscall_values = []
+        syscall_count = []
+        for i in syscall_array:
+            syscall_names.append(i[0])
+            syscall_values.append(i[1][0])
+            syscall_count.append(i[1][1])
 
+        print(syscall_count)
         fig = plt.figure()
 
         ax = fig.add_subplot(111)
@@ -287,6 +308,8 @@ class SubWindow(wx.Frame):
         ax.bar(syscall_names,syscall_values)
   
         ax.set_xticklabels(syscall_names, rotation = 45)
+        for i,v in enumerate(syscall_values):
+            ax.text(i, v + 1, syscall_count[i], color='blue')
         plt.yscale("log")
 
         canvas = FigureCanvas(panel, -1, fig)
