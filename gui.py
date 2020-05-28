@@ -180,6 +180,7 @@ class SubWindow(wx.Frame):
         self.vSizerMethod = wx.BoxSizer(wx.VERTICAL)
 
         self.hSizerDropDown = wx.BoxSizer(wx.HORIZONTAL)
+        self.hSizerTitle = wx.BoxSizer(wx.HORIZONTAL)
         self.hSizerDetailed = wx.BoxSizer(wx.HORIZONTAL)
         self.hSizerTimeGraph = wx.BoxSizer(wx.HORIZONTAL)
         self.hSizerTimeline = wx.BoxSizer(wx.HORIZONTAL)
@@ -190,6 +191,9 @@ class SubWindow(wx.Frame):
         self.displayChoiceDropDown = wx.ComboBox(panel, wx.ID_ANY, "Default", choices = ["Detailed", "Timeline", "Syscall Execution Graph"], size=(200, -1))
         self.hSizerDropDown.Add(self.displayChoiceDropDown, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
         self.Bind(wx.EVT_COMBOBOX, self.swapView, self.displayChoiceDropDown)
+
+        self.pid_title = wx.StaticText(panel, label=self.GetTitle())
+        self.hSizerTitle.Add(self.pid_title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
 
         self.syscall_text = wx.StaticText(panel, label="System Calls", pos = (20, 0))
         self.vSizerSyscall.Add(self.syscall_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
@@ -348,6 +352,7 @@ class SubWindow(wx.Frame):
         self.paint = 0
         
         self.mainVSizer.Add(self.hSizerDropDown, 0, wx.ALL| wx.EXPAND, 5)
+        self.mainVSizer.Add(self.hSizerTitle, 0, wx.ALL | wx.EXPAND, 5)
         self.mainVSizer.Add(self.hSizerDetailed, 0, wx.ALL| wx.EXPAND, 5)
         self.mainVSizer.Add(self.hSizerTimeGraph, 0, wx.ALL| wx.EXPAND, 5)
 
