@@ -199,7 +199,7 @@ class SubWindow(wx.Frame):
         sysButtons = []
         methodButtons = []
         gauges = []
-        
+        gauges_text = []
 
         stdioFound = 0
         buffer = 0
@@ -233,15 +233,13 @@ class SubWindow(wx.Frame):
         k = 0
         for i in output[1]:
             #string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
-            try:
-                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
-            except IndexError: 
-                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value"
-            sysButtons.append(wx.Button(panel, wx.ID_ANY, string))
-            
-            
-            self.vSizerSyscall.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
+
             if(stdioFound == 1 and str(i[3]) == "write"):
+                #text: buffer used: %
+                #label = "Buffer used: " + str(i[4]) + "/" + str(buffer) + ". " + str(i[4]/buffer * 100) + "%"
+                label = "Buffer used: %db/%db. %.2f%%" % (i[4], buffer, i[4]/buffer * 100)
+                gauges_text.append(wx.StaticText(panel, label = label))
+                self.vSizerSyscall.Add(gauges_text[k], 0)
                 #add wx.gauge here
                 gauges.append(wx.Gauge(panel, range = buffer, size = (100, 25), style = wx.GA_HORIZONTAL))
                 if(int(i[4]) < buffer/100):
@@ -249,8 +247,15 @@ class SubWindow(wx.Frame):
                 else:
                     gauges[k].SetValue(int(i[4]))
                 
-                self.vSizerSyscall.Add(gauges[k], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 5)
+                self.vSizerSyscall.Add(gauges[k], 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
                 k = k + 1
+
+            try:
+                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nretval: " + str(i[4])
+            except IndexError: 
+                string = "Syscall: " + str(i[3]) + "\nStart time: " + str(i[0]-start) + "\nDuration: " + str(i[1]) + "\nNo return value"
+            sysButtons.append(wx.Button(panel, wx.ID_ANY, string))
+            self.vSizerSyscall.Add(sysButtons[j], 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 20)
             j = j + 1
         
         j = 0
@@ -297,7 +302,6 @@ class SubWindow(wx.Frame):
   
         ax.set_xticklabels(syscall_names, rotation = 45)
         for i,v in enumerate(syscall_values):
-            #ax.text(i, v + 1, syscall_count[i], color='blue')
             ax.text(i-0.1, v, syscall_count[i], color='blue')
         plt.yscale("log")
 
@@ -309,7 +313,6 @@ class SubWindow(wx.Frame):
         self.hSizerDetailed.Add(self.vSizerMethod, 0, wx.ALL| wx.EXPAND, 5)
 
         self.total_time = output[0][len(output[0])-1][0] + output[0][len(output[0])-1][1] - output[0][0][0]
-        #self.end_time = output[0][len(output)-1][0] + output[0][len(output)-1][1] - output[0][0][0]
         x_offset = 50.0
         y_offset = 150.0
         line_start = 0
@@ -320,21 +323,13 @@ class SubWindow(wx.Frame):
             if(len(self.drawing_method) == 0):
                 line_start = ((i[0]-start) / self.total_time) * 1200
                 line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
-                #print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
-                #print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
-                #print(line_start)
-                #print(line_end)
                 self.drawing_method.append((x_offset + line_start, y_offset, x_offset + line_end, y_offset))
                 self.drawing_method_names.append(str(i[3]))
             else:
                 line_start = ((i[0]-start)/self.total_time) * 1200
-                #print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
-                #print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
-                #print(line_start)
                 line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
-                #print(line_end)
+
                 for j in range(len(self.drawing_method)-1, -1, -1):
-                    #print(j)
                     if self.drawing_method[j][2] > line_start + x_offset:
                         y_offset = y_offset + 50.0
                         self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
@@ -344,7 +339,6 @@ class SubWindow(wx.Frame):
                         self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
                         self.drawing_method_names.append(str(i[3]))
                         break
-        #print(self.drawing_method)
         
 
         self.Bind(wx.EVT_PAINT, self.OnPaint)
