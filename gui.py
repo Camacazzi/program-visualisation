@@ -314,33 +314,37 @@ class SubWindow(wx.Frame):
         line_start = 0
         line_end = 0
         self.drawing_method = []
+        self.drawing_method_names = []
         for i in output[0]:
             if(len(self.drawing_method) == 0):
                 line_start = ((i[0]-start) / self.total_time) * 1200
                 line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
-                print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
-                print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
-                print(line_start)
-                print(line_end)
+                #print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
+                #print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
+                #print(line_start)
+                #print(line_end)
                 self.drawing_method.append((x_offset + line_start, y_offset, x_offset + line_end, y_offset))
+                self.drawing_method_names.append(str(i[3]))
             else:
                 line_start = ((i[0]-start)/self.total_time) * 1200
-                print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
-                print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
-                print(line_start)
-                
+                #print("i 0:" + str(i[0]) + " start: " + str(start) + " total_time: " + str(self.total_time))
+                #print("i 0 - start / total_time: " + str((i[0] -start)/self.total_time))
+                #print(line_start)
                 line_end = ((i[0]-start + i[1]) / self.total_time) * 1200
-                print(line_end)
+                #print(line_end)
                 for j in range(len(self.drawing_method)-1, -1, -1):
                     #print(j)
-                    if self.drawing_method[j][2] > line_start:
+                    if self.drawing_method[j][2] > line_start + x_offset:
                         y_offset = y_offset + 50.0
                         self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
+                        self.drawing_method_names.append(str(i[3]))
                         break
                     else:
                         self.drawing_method.append([x_offset + line_start, y_offset, x_offset + line_end, y_offset])
+                        self.drawing_method_names.append(str(i[3]))
                         break
         #print(self.drawing_method)
+        
 
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.paint = 0
@@ -362,8 +366,24 @@ class SubWindow(wx.Frame):
         dc = wx.PaintDC(self)
         if self.paint == 1:
             dc.SetPen(wx.Pen(wx.BLACK, 4))
-            for i in self.drawing_method:
-                dc.DrawLine(i[0], i[1], i[2], i[3])
+            """for i in self.drawing_method:
+                dc.DrawLine(i[0], i[1], i[2], i[3])"""
+            for i,v in enumerate(self.drawing_method):
+                dc.SetPen(wx.Pen(wx.BLACK, 4))
+                dc.DrawLine(v[0], v[1], v[2], v[3])
+                dc.DrawText(self.drawing_method_names[i], v[0], v[1])
+                dc.SetPen(wx.Pen(wx.BLUE, 6))
+                dc.DrawPoint(v[0], v[1])
+                dc.SetPen(wx.Pen(wx.RED, 3))
+                dc.DrawLine(v[2], v[3] + 5, v[2], v[3]-5)
+                if(i > 0):
+                    if v[1] is not self.drawing_method[i-1][1]:
+                        #draw line from top to bottom as an arrow
+                        dc.SetPen(wx.Pen(wx.BLACK, 2))
+                        dc.DrawLine(v[0], self.drawing_method[i-1][1], v[0], v[3])
+                        dc.SetPen(wx.Pen(wx.BLACK, 2))
+                        #dc.DrawLineList([(v[2], v[3]), (v[2]-2, v[3]-3), (v[2]+2, v[3]-3)])
+                        dc.DrawLineList([(v[0], v[1], v[0]-5, v[1]-6), (v[0]-5, v[1]-6, v[0]+5, v[1]-6), (v[0]+5, v[1]-6, v[0], v[1])])
 
         else:
             dc.Clear()
