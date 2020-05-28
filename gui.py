@@ -297,7 +297,8 @@ class SubWindow(wx.Frame):
   
         ax.set_xticklabels(syscall_names, rotation = 45)
         for i,v in enumerate(syscall_values):
-            ax.text(i, v + 1, syscall_count[i], color='blue')
+            #ax.text(i, v + 1, syscall_count[i], color='blue')
+            ax.text(i-0.1, v, syscall_count[i], color='blue')
         plt.yscale("log")
 
         canvas = FigureCanvas(panel, -1, fig)
