@@ -294,16 +294,19 @@ class SubWindow(wx.Frame):
             syscall_count.append(i[1][1])
 
         print(syscall_count)
-        fig = plt.figure()
+        fig = plt.figure(figsize = (8,6))
 
         ax = fig.add_subplot(111)
 
         ax.bar(syscall_names,syscall_values)
   
-        ax.set_xticklabels(syscall_names, rotation = 45)
+        ax.set_xticklabels(syscall_names, rotation = -90)
         for i,v in enumerate(syscall_values):
             ax.text(i-0.1, v, syscall_count[i], color='blue')
         plt.yscale("log")
+        plt.ylabel("Execution time (s)")
+        plt.title("Cumulative execution time per system call")
+        plt.subplots_adjust(bottom=0.2)
 
         canvas = FigureCanvas(panel, -1, fig)
 
